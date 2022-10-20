@@ -1,0 +1,2 @@
+class SequenceError(Exception):
+    pass

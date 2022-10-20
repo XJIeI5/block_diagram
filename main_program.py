@@ -1,13 +1,20 @@
 # -*- coding: utf-8 -*-
 import sys
+import traceback
 from enum import Enum
 from PyQt5 import QtWidgets, QtGui, QtCore
 import blocks
 import interpreter
+from exceptions import SequenceError
 
 # def override(parent_class):
 #     def override_decorator(func):
 #         def _wrap(*args, **kwargs)
+
+
+def excepthook(exc_type, exc_value, exc_tb):
+    tb = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    print(tb)
 
 
 class ProgramState(Enum):
@@ -59,12 +66,14 @@ class MainWindow:
 
         self.add_input_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/input.png'), 'input', self)
         self.add_output_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/output.png'), 'output', self)
+        self.add_operation_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/operation.png'), 'operation', self)
         self.execute_program_action = QtWidgets.QAction('execute', self)
 
         self.block_toolbar = QtWidgets.QToolBar('blocks', self)
         main_window.addToolBar(self.block_toolbar)
         self.block_toolbar.addAction(self.add_input_block_action)
         self.block_toolbar.addAction(self.add_output_block_action)
+        # self.block_toolbar.addAction(self.add_operation_block_action)
         self.block_toolbar.addAction(self.execute_program_action)
 
 
@@ -76,6 +85,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
         self.lines: list[QtCore.QLine] = self.lines
         self.connecting_parent = None
         self.connecting_child = None
+        self.interpreter = interpreter.Interpreter([])
 
         self.blocks = []
 
@@ -96,6 +106,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
 
         self.add_input_block_action.triggered.connect(lambda: self.add_block(blocks.InputBlock))
         self.add_output_block_action.triggered.connect(lambda: self.add_block(blocks.OutputBlock))
+        # self.add_operation_block_action.triggered.connect(lambda: self.add_block(blocks.OperationBlock))
         self.execute_program_action.triggered.connect(self.execute_program)
 
     def add_block(self, block_type) -> None:
@@ -129,8 +140,8 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
             if not previous_block.child:
                 continue
             next_block = previous_block.child
-            line = QtCore.QLine(previous_block.pos() + previous_block.pixmap_label.rect().center(),
-                                next_block.pos() + next_block.rect().center() * 0.5)
+            line = QtCore.QLine(previous_block.pos() + previous_block.rect().center(),
+                                next_block.pos() + next_block.rect().center())
             lines.append(line)
         self.lines = lines
 
@@ -160,11 +171,14 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
 
     def execute_program(self):
         self.change_state(ProgramState.EXECUTING)
-        _interpreter = interpreter.Interpreter(self.blocks)
         try:
-            _interpreter.execute()
-        except ValueError:
-            self.status_bar.showMessage('No arguments specified')
+            if self.interpreter.blocks != self.blocks:
+                self.interpreter.blocks = self.blocks.copy()
+                self.interpreter.execute()
+        except ValueError as error:
+            self.status_bar.showMessage(repr(error))
+        except SequenceError as error:
+            self.status_bar.showMessage(repr(error))
         self.change_state(ProgramState.PLACING)
 
 
