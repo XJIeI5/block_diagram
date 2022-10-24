@@ -5,11 +5,8 @@ from enum import Enum
 from PyQt5 import QtWidgets, QtGui, QtCore
 import blocks
 import interpreter
+import visual_elements
 from exceptions import SequenceError
-
-# def override(parent_class):
-#     def override_decorator(func):
-#         def _wrap(*args, **kwargs)
 
 
 def excepthook(exc_type, exc_value, exc_tb):
@@ -22,26 +19,6 @@ class ProgramState(Enum):
     PLACING = 1
     CONNECTING = 2
     EXECUTING = 3
-
-
-class Drawer:
-    """класс, который отвечает за отрисовку линий в окне"""
-    def __init__(self):
-        self._lines = []
-
-    @property
-    def lines(self):
-        return self._lines
-
-    @lines.setter
-    def lines(self, l):
-        self._lines = l[:]
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        painter = QtGui.QPainter(self)
-        for line in self.lines:
-            painter.drawLine(line)
 
 
 class MainWindow:
@@ -77,15 +54,15 @@ class MainWindow:
         self.block_toolbar.addAction(self.execute_program_action)
 
 
-class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
+class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     """основное окно"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.state: ProgramState = ProgramState.PLACING
-        self.lines: list[QtCore.QLine] = self.lines
+        self.arrows: list[visual_elements.Arrow] = self.arrows
         self.connecting_parent = None
         self.connecting_child = None
-        self.interpreter = interpreter.Interpreter([])
+        self.interpreter = interpreter.Interpreter()
 
         self.blocks = []
 
@@ -116,6 +93,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
         if not issubclass(block_type.__class__, blocks.Block.__class__):
             return
         new_block = block_type(self)
+        new_block.deleted.connect(self.delete_block)
         self.blocks.insert(-1, new_block)
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
@@ -135,15 +113,53 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
 
     def recalculate_position(self) -> None:
         """пересчитывает позицию QLine между блоками, между которыми установлена связь"""
-        lines = []
+        arrows = []
         for previous_block in self.blocks:
             if not previous_block.child:
                 continue
             next_block = previous_block.child
             line = QtCore.QLine(previous_block.pos() + previous_block.rect().center(),
                                 next_block.pos() + next_block.rect().center())
-            lines.append(line)
-        self.lines = lines
+            intersect_point = self.get_line_rect_intersection(line, next_block)
+            new_arrow = visual_elements.Arrow(previous_block.pos() + previous_block.rect().center(), intersect_point)
+            arrows.append(new_arrow)
+
+            # arrows.append(arrowhead2)
+        self.arrows = arrows
+
+    def get_line_rect_intersection(self, line: QtCore.QLine, widget: QtWidgets.QWidget) -> QtCore.QPoint:
+        x, y = 0, 0
+        rect = widget.rect
+        try:
+            s = (line.y1() - line.y2()) / (line.x1() - line.x2())
+        except ZeroDivisionError:
+            s = 1
+
+        if -rect().height() <= s * rect().width() / 2 <= rect().height() / 2:
+            if line.x1() < line.x2():  # Right
+                return self.get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
+                                                                          widget.mapToParent(rect().bottomLeft())))
+            else:  # Left
+                return self.get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topRight()),
+                                                                          widget.mapToParent(rect().bottomRight())))
+        else:
+            if line.y1() < line.y2():  # Up
+                return self.get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
+                                                                          widget.mapToParent(rect().topRight())))
+            else:  # Down
+                return self.get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().bottomLeft()),
+                                                                          widget.mapToParent(rect().bottomRight())))
+
+    def get_line_line_intersection(self, line1: QtCore.QLine, line2: QtCore.QLine) -> QtCore.QPoint:
+        x1, y1, x2, y2 = line1.x1(), line1.y1(), line1.x2(), line1.y2()
+        x3, y3, x4, y4 = line2.x1(), line2.y1(), line2.x2(), line2.y2()
+
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        x_divisible = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)
+        y_divisible = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)
+        x = x_divisible / denominator
+        y = y_divisible / denominator
+        return QtCore.QPoint(int(x), int(y))
 
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
         if a1.type() == QtCore.QEvent.Move and a0 in self.blocks:
@@ -172,14 +188,19 @@ class Program(QtWidgets.QMainWindow, MainWindow, Drawer):
     def execute_program(self):
         self.change_state(ProgramState.EXECUTING)
         try:
-            if self.interpreter.blocks != self.blocks:
-                self.interpreter.blocks = self.blocks.copy()
-                self.interpreter.execute()
+            self.interpreter.execute(self.blocks)
         except ValueError as error:
             self.status_bar.showMessage(repr(error))
         except SequenceError as error:
             self.status_bar.showMessage(repr(error))
         self.change_state(ProgramState.PLACING)
+
+    def delete_block(self):
+        index = self.blocks.index(self.sender())
+        if self.blocks[index - 1].child == self.sender():
+            self.blocks[index - 1].child = None
+        del self.blocks[index]
+        self.recalculate_position()
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Block(QtWidgets.QWidget):
     clicked = QtCore.pyqtSignal()
+    deleted = QtCore.pyqtSignal()
 
     """Родительский класс для блоков на схеме"""
 
@@ -101,7 +102,8 @@ class Block(QtWidgets.QWidget):
         # if cls.get_func()
 
     def delete(self):
-        pass
+        self.deleteLater()
+        self.deleted.emit()
 
     def get_func(self) -> str:
         return ''
@@ -114,7 +116,9 @@ class InputBlock(Block):
         super(InputBlock, self).__init__(parent, QtGui.QPixmap('./pictures/input.png'))
 
     def get_func(self) -> str:
-        return f'{self.arg} = input()'
+        if self.arg:
+            return f'{self.arg} = input()'
+        return 'input()'
 
 
 class OutputBlock(Block):
@@ -124,7 +128,9 @@ class OutputBlock(Block):
         super(OutputBlock, self).__init__(parent, QtGui.QPixmap('./pictures/output.png'))
 
     def get_func(self) -> str:
-        return f'print({self.arg})'
+        if self.arg:
+            return f'print({self.arg})'
+        return 'print()'
 
 
 class StartBlock(Block):
