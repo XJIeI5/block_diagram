@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from PyQt5 import QtCore, QtGui, QtWidgets
 import math
 
@@ -73,6 +74,7 @@ class Arrow(QtWidgets.QWidget):
 
 class Drawer:
     """класс, который отвечает за отрисовку линий в окне"""
+
     def __init__(self):
         self._arrows = []
 

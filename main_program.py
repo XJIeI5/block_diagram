@@ -43,14 +43,14 @@ class MainWindow:
 
         self.add_input_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/input.png'), 'input', self)
         self.add_output_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/output.png'), 'output', self)
-        self.add_operation_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/operation.png'), 'operation', self)
+        self.add_variable_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/variable.png'), 'variable', self)
         self.execute_program_action = QtWidgets.QAction('execute', self)
 
         self.block_toolbar = QtWidgets.QToolBar('blocks', self)
         main_window.addToolBar(self.block_toolbar)
         self.block_toolbar.addAction(self.add_input_block_action)
         self.block_toolbar.addAction(self.add_output_block_action)
-        # self.block_toolbar.addAction(self.add_operation_block_action)
+        self.block_toolbar.addAction(self.add_variable_block_action)
         self.block_toolbar.addAction(self.execute_program_action)
 
 
@@ -83,10 +83,10 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
 
         self.add_input_block_action.triggered.connect(lambda: self.add_block(blocks.InputBlock))
         self.add_output_block_action.triggered.connect(lambda: self.add_block(blocks.OutputBlock))
-        # self.add_operation_block_action.triggered.connect(lambda: self.add_block(blocks.OperationBlock))
+        self.add_variable_block_action.triggered.connect(lambda: self.add_block(blocks.VariableBlock))
         self.execute_program_action.triggered.connect(self.execute_program)
 
-    def add_block(self, block_type) -> None:
+    def add_block(self, block_type: blocks.Block) -> blocks.Block:
         """добавляет block_type в окно программы, block_type обязательно должен быть наследником Block"""
         if not self.state == ProgramState.PLACING:
             return
@@ -94,7 +94,9 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             return
         new_block = block_type(self)
         new_block.deleted.connect(self.delete_block)
+        new_block.merged_new_block.connect(self.merge_block)
         self.blocks.insert(-1, new_block)
+        return new_block
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
         if not self.state == ProgramState.CONNECTING:
@@ -104,12 +106,22 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         event.accept()
 
     def dropEvent(self, event: QtGui.QDropEvent) -> None:
-        dropped_block = event.source()
-        new_position = event.pos() - dropped_block.rect().center()
-        dropped_block.move(new_position)
+        self.move_blocks(event.source(), event.pos())
 
         event.setDropAction(QtCore.Qt.DropAction.MoveAction)
         event.accept()
+
+    def move_blocks(self, source_block: blocks.Block, mouse_pos: QtCore.QPoint):
+        current_block = source_block.highest_layer
+        for i in range(source_block.highest_layer.depth + 1):
+            if current_block.layer_up_block is None:
+                new_position = mouse_pos - current_block.rect().center()
+            else:
+                # Заменить на current_block.move_layer_down_block_to_parent()
+                new_position = current_block.highest_layer.mapToParent(current_block.highest_layer.rect().topRight())
+                new_position += QtCore.QPoint(-3 * i - current_block.width(), 4 * i)
+            current_block.move(new_position)
+            current_block = current_block.layer_down_block
 
     def recalculate_position(self) -> None:
         """пересчитывает позицию QLine между блоками, между которыми установлена связь"""
@@ -118,11 +130,15 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             if not previous_block.child:
                 continue
             next_block = previous_block.child
-            line = QtCore.QLine(previous_block.pos() + previous_block.rect().center(),
-                                next_block.pos() + next_block.rect().center())
-            intersect_point = self.get_line_rect_intersection(line, next_block)
-            new_arrow = visual_elements.Arrow(previous_block.pos() + previous_block.rect().center(), intersect_point)
-            arrows.append(new_arrow)
+            try:
+                line = QtCore.QLine(previous_block.pos() + previous_block.rect().center(),
+                                    next_block.pos() + next_block.rect().center())
+                intersect_point = self.get_line_rect_intersection(line, next_block)
+                new_arrow = visual_elements.Arrow(previous_block.pos() + previous_block.rect().center(), intersect_point)
+                arrows.append(new_arrow)
+            except RuntimeError:
+                previous_block.child = None
+                continue
 
             # arrows.append(arrowhead2)
         self.arrows = arrows
@@ -157,8 +173,11 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
         x_divisible = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)
         y_divisible = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)
-        x = x_divisible / denominator
-        y = y_divisible / denominator
+        try:
+            x = x_divisible / denominator
+            y = y_divisible / denominator
+        except ZeroDivisionError:
+            return QtCore.QPoint(0, 0)
         return QtCore.QPoint(int(x), int(y))
 
     def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
@@ -173,14 +192,14 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     def start_connection(self):
         """начинает строить connection"""
         self.change_state(ProgramState.CONNECTING)
-        self.connecting_parent = self.sender().data()
+        self.connecting_parent = self.sender().data().highest_layer
 
     def end_connection(self):
         """заканчивает строить connection"""
         if not self.state == ProgramState.CONNECTING:
             self.change_state(ProgramState.PLACING)
             return
-        self.connecting_parent.child = self.sender()
+        self.connecting_parent.child = self.sender().highest_layer
         self.connecting_parent = None
         self.change_state(ProgramState.PLACING)
         self.recalculate_position()
@@ -196,11 +215,33 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.change_state(ProgramState.PLACING)
 
     def delete_block(self):
-        index = self.blocks.index(self.sender())
+        sender_block: blocks.Block = self.sender()
+        self.delete_from_blocks(sender_block)
+        if sender_block.layer_down_block is not None:
+            current_block = sender_block.layer_down_block
+            for i in range(sender_block.depth):
+                self.delete_from_blocks(current_block)
+                current_block = current_block.layer_down_block
+        if sender_block.layer_up_block is not None:
+            sender_block.layer_up_block.layer_down_block = None
+        self.recalculate_position()
+
+    def delete_from_blocks(self, block_to_delete: blocks.Block):
+        index = self.blocks.index(block_to_delete)
         if self.blocks[index - 1].child == self.sender():
             self.blocks[index - 1].child = None
         del self.blocks[index]
-        self.recalculate_position()
+
+    def merge_block(self):
+        parent_block: blocks.Block = self.sender()
+        items_data = {'Method Block': blocks.MethodBlock, 'Variable Block': blocks.VariableBlock,
+                      'Operator Block': blocks.OperatorBlock, 'Data Block': blocks.DataBlock}
+        block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
+        if ok:
+            new_block = self.add_block(items_data[block_type])
+
+            parent_block.layer_down_block = new_block
+            new_block.layer_up_block = parent_block
 
 
 if __name__ == '__main__':

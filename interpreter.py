@@ -14,24 +14,32 @@ class Interpreter:
         if blocks[0].__class__ != StartBlock and blocks[-1].__class__ != EndBlock:
             return ''
         result = []
-
-        inherit_from_start: list[Block] = []
-        if not blocks[0].child:
-            raise SequenceError(f"StartBlock doesn't have child")
-        for block in blocks[1:]:
-            if blocks[0].child == block:  # является ли блок ребенком старта?
-                inherit_from_start += [block]
-            else:  # иначе если не является
-                if inherit_from_start[-1].child != block:  # если не является ребенком ребенка старта
-                    raise SequenceError(f'{block.__class__.__name__} not inherited from StartBlock')
-                else:
-                    inherit_from_start.append(block)
+        self.handle_errors(blocks)
 
         blocks_result = []
+        closing_bracket_countdown = []
         for block in blocks:
-            # if not (block.__class__ == StartBlock or block.__class__ == EndBlock) and not block.arg:
-            #     raise ValueError('no arguments specified')
-            blocks_result.append(block.get_func())
+            if block.highest_layer == block and block.depth == 0:
+                blocks_result.append(block.get_func())
+            elif block.highest_layer == block and block.depth != 0:
+                construct = ''
+                current_block = block
+                while current_block.depth + 1 != 0:
+                    func = current_block.get_func()
+                    if current_block.is_python_function:
+                        func = func.replace(')', '')
+                        closing_bracket_countdown.append(current_block.depth)
+                    if 0 in closing_bracket_countdown:
+                        func += ')'
+                    if closing_bracket_countdown:
+                        closing_bracket_countdown = [i - 1 for i in closing_bracket_countdown]
+                    construct += func
+                    current_block = current_block.layer_down_block
+                    if current_block is None:
+                        break
+                blocks_result.append(construct)
+            else:
+                pass
 
         result.extend(map(lambda x: '\t' + x, blocks_result))
         result = self.add_standart_code(result)
@@ -39,19 +47,39 @@ class Interpreter:
 
     def add_standart_code(self, program: list[str]) -> list[str]:
         program.insert(0, 'try:')
-        # program.insert(0, '\tprint(tb)')
-        # program.insert(0, '\ttb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))')
-        # program.insert(0, 'def excepthook(exc_type, exc_value, exc_tb):')
         program.insert(0, 'import traceback')
-        program.insert(0, 'import sys')
+        # program.insert(0, 'import sys')
         program.append('')
         program.append('')
-        # program.append('sys.excepthook = excepthook')
         program.append('\tpass')
         program.append('except BaseException:')
         program.append('\tprint(traceback.format_exc())')
         program.append('input("press ENTER to close")')
         return program
+
+    def handle_errors(self, blocks):
+        current_block: Block = blocks[0]
+        inherited_from_start_blocks: list[Block] = []
+        try:
+            while current_block.__class__ != EndBlock:
+                if current_block.highest_layer != current_block:
+                    continue
+                if current_block.__class__ != StartBlock:
+                    if not any([i.highest_layer.child == current_block for i in inherited_from_start_blocks]):
+                        raise SequenceError
+                inherited_from_start_blocks.append(current_block)
+
+                if current_block.depth != 0:
+                    current_block_down = current_block
+                    for i in range(current_block.depth):
+                        current_block_down = current_block_down.layer_down_block
+                        inherited_from_start_blocks.append(current_block_down)
+
+                current_block = current_block.child
+        except AttributeError:
+            raise SequenceError
+        if len(inherited_from_start_blocks) + 1 < len(blocks):
+            raise SequenceError
 
     def execute(self, blocks: list[Block]):
         self.__program = self.convert_to_py(blocks)
