@@ -3,6 +3,45 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import math
 
 
+def get_line_rect_intersection(line: QtCore.QLine, widget: QtWidgets.QWidget) -> QtCore.QPoint:
+    x, y = 0, 0
+    rect = widget.rect
+    try:
+        s = (line.y1() - line.y2()) / (line.x1() - line.x2())
+    except ZeroDivisionError:
+        s = 1
+
+    if -rect().height() <= s * rect().width() / 2 <= rect().height() / 2:
+        if line.x1() < line.x2():  # Right
+            return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
+                                                                 widget.mapToParent(rect().bottomLeft())))
+        else:  # Left
+            return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topRight()),
+                                                                 widget.mapToParent(rect().bottomRight())))
+    else:
+        if line.y1() < line.y2():  # Up
+            return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
+                                                                 widget.mapToParent(rect().topRight())))
+        else:  # Down
+            return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().bottomLeft()),
+                                                                 widget.mapToParent(rect().bottomRight())))
+
+
+def get_line_line_intersection(line1: QtCore.QLine, line2: QtCore.QLine) -> QtCore.QPoint:
+    x1, y1, x2, y2 = line1.x1(), line1.y1(), line1.x2(), line1.y2()
+    x3, y3, x4, y4 = line2.x1(), line2.y1(), line2.x2(), line2.y2()
+
+    denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    x_divisible = (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)
+    y_divisible = (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)
+    try:
+        x = x_divisible / denominator
+        y = y_divisible / denominator
+    except ZeroDivisionError:
+        return QtCore.QPoint(0, 0)
+    return QtCore.QPoint(int(x), int(y))
+
+
 class Arrow(QtWidgets.QWidget):
     def __init__(self, begin: QtCore.QPoint, destination: QtCore.QPoint, parent=None):
         super().__init__(parent)

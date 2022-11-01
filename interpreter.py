@@ -14,32 +14,16 @@ class Interpreter:
         if blocks[0].__class__ != StartBlock and blocks[-1].__class__ != EndBlock:
             return ''
         result = []
-        self.handle_errors(blocks)
+        # self.handle_errors(blocks)
 
+        blocks = self.get_blocks_in_right_order(blocks[0])
         blocks_result = []
-        closing_bracket_countdown = []
         for block in blocks:
-            if block.highest_layer == block and block.depth == 0:
-                blocks_result.append(block.get_func())
-            elif block.highest_layer == block and block.depth != 0:
-                construct = ''
-                current_block = block
-                while current_block.depth + 1 != 0:
-                    func = current_block.get_func()
-                    if current_block.is_python_function:
-                        func = func.replace(')', '')
-                        closing_bracket_countdown.append(current_block.depth)
-                    if 0 in closing_bracket_countdown:
-                        func += ')'
-                    if closing_bracket_countdown:
-                        closing_bracket_countdown = [i - 1 for i in closing_bracket_countdown]
-                    construct += func
-                    current_block = current_block.layer_down_block
-                    if current_block is None:
-                        break
-                blocks_result.append(construct)
-            else:
-                pass
+            if block.layer_up_block is not None:
+                continue
+            if block.general_block is not None:
+                continue
+            blocks_result.extend(block.get_func().split('\n'))
 
         result.extend(map(lambda x: '\t' + x, blocks_result))
         result = self.add_standart_code(result)
@@ -64,14 +48,16 @@ class Interpreter:
             while current_block.__class__ != EndBlock:
                 if current_block.highest_layer != current_block:
                     continue
+                if current_block.highest_layer.general_block is not None:
+                    continue
                 if current_block.__class__ != StartBlock:
                     if not any([i.highest_layer.child == current_block for i in inherited_from_start_blocks]):
                         raise SequenceError
                 inherited_from_start_blocks.append(current_block)
 
-                if current_block.depth != 0:
+                if current_block.layer_depth != 0:
                     current_block_down = current_block
-                    for i in range(current_block.depth):
+                    for i in range(current_block.layer_depth):
                         current_block_down = current_block_down.layer_down_block
                         inherited_from_start_blocks.append(current_block_down)
 
@@ -80,6 +66,14 @@ class Interpreter:
             raise SequenceError
         if len(inherited_from_start_blocks) + 1 < len(blocks):
             raise SequenceError
+
+    def get_blocks_in_right_order(self, start_block: StartBlock):
+        result = []
+        current_block = start_block
+        while current_block is not None:
+            result.append(current_block)
+            current_block = current_block.child
+        return result
 
     def execute(self, blocks: list[Block]):
         self.__program = self.convert_to_py(blocks)
