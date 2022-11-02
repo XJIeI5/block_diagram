@@ -211,7 +211,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     def add_line(self):
         parent_block: blocks.BaseLoopBlock = self.sender()
         items_data = {"Functional Block": blocks.FunctionBlock,
-                      "Variable Block": blocks.VariableBlock, "For Loop Block": blocks.BaseLoopBlock}
+                      "Variable Block": blocks.VariableBlock, "For Loop Block": blocks.ForLoopBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
             new_block = self.add_block(items_data[block_type])

@@ -161,6 +161,7 @@ class Block(QtWidgets.QWidget):
         current_block = self
         while current_block.layer_up_block is not None:
             if issubclass(current_block.layer_up_block.__class__, BaseLoopBlock):
+                current_block = current_block.layer_up_block
                 continue
             current_block.layer_up_block.setFixedSize(
                 current_block.layer_up_block.width(), current_block.layer_up_block.height() - 8
@@ -347,8 +348,8 @@ class FunctionBlock(Block):
         self.is_python_function = True
 
     def set_argument(self):
-        data_to_dialog = [name for name, function in sorted(vars(builtins).items())
-                          if inspect.isbuiltin(function) or inspect.isfunction(function)]
+        data_to_dialog = [name for name, func in sorted(vars(builtins).items())
+                          if inspect.isbuiltin(func) or inspect.isfunction(func)]
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose function', 'function:', data_to_dialog)
         if ok:
             self.arg = new_arg + '()'
@@ -365,7 +366,8 @@ class DataTypeBlock(Block):
         self.is_python_function = True
 
     def set_argument(self):
-        data_to_dialog = ['str', 'int', 'float', 'bool', 'lict', 'tuple', 'dict', 'set']
+        data_to_dialog = [name for name, func in sorted(vars(builtins).items())
+                          if inspect.isclass(func) and name.islower()]
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose data type', 'data type:', data_to_dialog)
         if ok:
             self.arg = new_arg + '()'
