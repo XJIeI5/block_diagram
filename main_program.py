@@ -28,7 +28,7 @@ class MainWindow:
 
     def setup(self, main_window: QtWidgets.QMainWindow):
         main_window.setWindowTitle('Тест')
-        main_window.setFixedSize(500, 500)
+        main_window.setMinimumSize(800, 700)
         self.central_widget = QtWidgets.QWidget(main_window)
         self.central_widget.setObjectName("central_widget")
         main_window.setCentralWidget(self.central_widget)
@@ -45,6 +45,7 @@ class MainWindow:
         self.add_variable_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/variable.png'), 'variable', self)
         self.add_for_loop_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/for.png'), 'for loop', self)
         self.add_while_loop_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/while.png'), 'while loop', self)
+        self.add_if_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/if.png'), 'if block', self)
         self.execute_program_action = QtWidgets.QAction('execute', self)
 
         self.block_toolbar = QtWidgets.QToolBar('blocks', self)
@@ -53,6 +54,7 @@ class MainWindow:
         self.block_toolbar.addAction(self.add_variable_block_action)
         self.block_toolbar.addAction(self.add_for_loop_block_action)
         self.block_toolbar.addAction(self.add_while_loop_block_action)
+        self.block_toolbar.addAction(self.add_if_block_action)
         self.block_toolbar.addAction(self.execute_program_action)
 
 
@@ -87,6 +89,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.add_variable_block_action.triggered.connect(lambda: self.add_block(blocks.VariableBlock))
         self.add_for_loop_block_action.triggered.connect(lambda: self.add_block(blocks.ForLoopBlock))
         self.add_while_loop_block_action.triggered.connect(lambda: self.add_block(blocks.WhileLoopBlock))
+        self.add_if_block_action.triggered.connect(lambda: self.add_block(blocks.IfBlock))
         self.execute_program_action.triggered.connect(self.execute_program)
 
     def add_block(self, block_type: blocks.Block.__class__) -> blocks.Block:
@@ -116,6 +119,8 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         current_block = source_block.highest_layer
         while current_block.general_block is not None:
             current_block = current_block.general_block
+        if issubclass(current_block.__class__, blocks.BaseGeneralBlockWithAdditionalBlocks):
+            current_block = current_block.highest_additional_block
         current_block.move(mouse_pos.x() - current_block.width() // 2, mouse_pos.y() - current_block.height() // 2)
         current_block.move_related_blocks()
 
@@ -155,14 +160,20 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     def start_connection(self):
         """начинает строить connection"""
         self.change_state(ProgramState.CONNECTING)
-        self.connecting_parent = self.sender().data().highest_layer
+        self.connecting_parent = self.sender().data().highest_layer.highest_general_block
+        if issubclass(self.sender().data().highest_layer.highest_general_block.__class__,
+                      blocks.BaseGeneralBlockWithAdditionalBlocks):
+            self.connecting_parent = self.sender().data().highest_layer.highest_general_block.highest_additional_block
 
     def end_connection(self):
         """заканчивает строить connection"""
         if not self.state == ProgramState.CONNECTING:
             self.change_state(ProgramState.PLACING)
             return
-        self.connecting_parent.child = self.sender().highest_layer
+        self.connecting_parent.child = self.sender().highest_layer.highest_general_block
+        if issubclass(self.sender().highest_layer.highest_general_block.__class__,
+                      blocks.BaseGeneralBlockWithAdditionalBlocks):
+            self.connecting_parent.child = self.sender().highest_layer.highest_general_block.highest_additional_block
         self.connecting_parent = None
         self.change_state(ProgramState.PLACING)
         self.recalculate_position()
@@ -191,8 +202,9 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
 
     def delete_from_blocks(self, block_to_delete: blocks.Block):
         index = self.blocks.index(block_to_delete)
-        if self.blocks[index - 1].child == self.sender():
-            self.blocks[index - 1].child = None
+        for block in self.blocks:
+            if block.child == self.blocks[index]:
+                block.child = None
         del self.blocks[index]
 
     def merge_block(self):
@@ -200,7 +212,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         items_data = {'Method Block': blocks.MethodBlock, 'Variable Block': blocks.VariableBlock,
                       'Operator Block': blocks.OperatorBlock, 'Data Block': blocks.DataBlock,
                       'Logical Block': blocks.LogicalBlock, 'Function Block': blocks.FunctionBlock,
-                      'DataType Block': blocks.DataTypeBlock}
+                      'Data Type Block': blocks.DataTypeBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
             new_block = self.add_block(items_data[block_type])
@@ -209,14 +221,31 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             new_block.layer_up_block = parent_block
 
     def add_line(self):
-        parent_block: blocks.BaseLoopBlock = self.sender()
-        items_data = {"Functional Block": blocks.FunctionBlock,
-                      "Variable Block": blocks.VariableBlock, "For Loop Block": blocks.ForLoopBlock}
+        parent_block: blocks.BaseGeneralBlock = self.sender()
+        items_data = {"Functional Block": blocks.FunctionBlock, "If Block": blocks.IfBlock,
+                      "Variable Block": blocks.VariableBlock, "For Loop Block": blocks.ForLoopBlock,
+                      "While Loop Block": blocks.WhileLoopBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
             new_block = self.add_block(items_data[block_type])
             parent_block.lines.append(new_block)
             new_block.general_block = parent_block
+
+    def add_additional_block(self):
+        parent_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.sender()
+        items_data = {"Else Block": blocks.ElseBlock, "Elif Block": blocks.ElifBlock}
+        block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
+        if ok:
+            new_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.add_block(items_data[block_type])
+            if parent_block.layer_down_additional_block is None:
+                parent_block.layer_down_additional_block = new_block
+                new_block.layer_up_additional_block = parent_block
+            else:
+                new_layer_up_block, new_layer_down_block = parent_block, parent_block.layer_down_additional_block
+                new_layer_up_block.layer_down_additional_block = new_block
+                new_block.layer_up_additional_block = new_layer_up_block
+                new_block.layer_down_additional_block = new_layer_down_block
+                new_layer_down_block.layer_up_additional_block = new_block
 
 
 if __name__ == '__main__':

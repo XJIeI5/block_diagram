@@ -23,6 +23,8 @@ class Interpreter:
                 continue
             if block.general_block is not None:
                 continue
+            if hasattr(block, 'layer_up_additional_block') and block.layer_up_additional_block is not None:
+                continue
             blocks_result.extend(block.get_func().split('\n'))
 
         result.extend(map(lambda x: '\t' + x, blocks_result))
@@ -32,7 +34,6 @@ class Interpreter:
     def add_standart_code(self, program: list[str]) -> list[str]:
         program.insert(0, 'try:')
         program.insert(0, 'import traceback')
-        # program.insert(0, 'import sys')
         program.append('')
         program.append('')
         program.append('\tpass')

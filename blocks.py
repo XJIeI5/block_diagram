@@ -10,7 +10,6 @@ class Block(QtWidgets.QWidget):
     clicked = QtCore.pyqtSignal()
     deleted = QtCore.pyqtSignal()
     merged_new_block = QtCore.pyqtSignal()
-    added_new_line = QtCore.pyqtSignal()
 
     """Родительский класс для блоков на схеме"""
 
@@ -26,6 +25,7 @@ class Block(QtWidgets.QWidget):
         self.layer_up_block: Block = None
         self.layer_down_block: Block = None
         self.is_python_function = False
+        self.is_general_block = False
 
         self.pixmap = QtGui.QPixmap(image)
         self.arg_label = QtWidgets.QLabel(self, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
@@ -139,16 +139,17 @@ class Block(QtWidgets.QWidget):
     def delete(self):
         self.deleteLater()
 
-        if self.layer_up_block is not None:
-            self.layer_up_block.layer_down_block = None
-            self.layer_up_block.resize_block()
-            self.reduce_layer_up_blocks_height()
-        if self.layer_down_block is not None:
-            self.delete_all_layer_down_blocks()
         if self.highest_layer.general_block:
             self.highest_layer.general_block.delete_related_block(self)
             self.highest_layer.general_block.resize_block()
             self.highest_layer.general_block.move_related_blocks()
+        if self.layer_up_block is not None:
+            self.layer_up_block.layer_down_block = None
+            self.layer_up_block.resize_block()
+            self.reduce_layer_up_blocks_height()
+            self.highest_layer.move_related_blocks()
+        if self.layer_down_block is not None:
+            self.layer_down_block.delete()
         self.deleted.emit()
 
     def delete_related_block(self, block):
@@ -160,7 +161,7 @@ class Block(QtWidgets.QWidget):
         """уменьшает высоту всех стоящих выше блоков"""
         current_block = self
         while current_block.layer_up_block is not None:
-            if issubclass(current_block.layer_up_block.__class__, BaseLoopBlock):
+            if current_block.layer_up_block.is_general_block and current_block.layer_up_block.layer_depth == 0:
                 current_block = current_block.layer_up_block
                 continue
             current_block.layer_up_block.setFixedSize(
@@ -168,27 +169,20 @@ class Block(QtWidgets.QWidget):
             )
             current_block = current_block.layer_up_block
 
-    def delete_all_layer_down_blocks(self):
-        blocks_to_delete = []
-
-        current_block = self.layer_down_block
-        for i in range(self.layer_depth):
-            blocks_to_delete.append(current_block)
-            current_block = current_block.layer_down_block
-
-        for block in blocks_to_delete:
-            block.delete()
-
     def merge_block(self):
         if self.layer_down_block:
             return
         self.merged_new_block.emit()
-        self.resize_block()
+        self.resize_block()  # Здесь мы изменяем блок, к которому мерджили
         self.move_related_blocks()
-        if not self.highest_layer.general_block:
-            return
-        self.highest_layer.general_block.resize_block()
-        self.highest_layer.general_block.move_related_blocks()
+        if self.highest_layer.general_block:
+            current_block = self.highest_layer.general_block  # Здесь изменяем все обобщяющие (general) блоки
+            while current_block is not None:
+                current_block.resize_block()
+                current_block.move_related_blocks()
+                current_block = current_block.general_block
+        if issubclass(self.highest_layer.__class__, BaseGeneralBlockWithAdditionalBlocks):
+            self.highest_layer.move_related_blocks()
 
     def get_self_func(self) -> str:
         return ''
@@ -374,6 +368,9 @@ class DataTypeBlock(Block):
             self.arg_label.setText(self.arg)
             self.resize_block()
 
+    def get_self_func(self) -> str:
+        return self.arg
+
 
 class LogicalBlock(Block):
     def __init__(self, parent):
@@ -383,7 +380,7 @@ class LogicalBlock(Block):
         data_to_dialog = ['==', '!=', '>', '<', '>=', '<=']
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose operator', 'operator:', data_to_dialog)
         if ok:
-            self.arg = new_arg
+            self.arg = new_arg + ' '
             self.arg_label.setText(self.arg)
             self.resize_block()
 
@@ -391,15 +388,18 @@ class LogicalBlock(Block):
         return self.arg
 
 
-class BaseLoopBlock(Block):
+class BaseGeneralBlock(Block):
+    added_new_line = QtCore.pyqtSignal()
+
     def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
         super(Block, self).__init__(parent)
         self.add_line_action: QtWidgets.QAction = QtWidgets.QAction('add line', self)
         self.lines: list[Block] = []
-        super(BaseLoopBlock, self).__init__(parent, image, minimum_width, minimum_height)
+        super(BaseGeneralBlock, self).__init__(parent, image, minimum_width, minimum_height)
+        self.is_general_block = True
 
     def define_actions(self):
-        super(BaseLoopBlock, self).define_actions()
+        super(BaseGeneralBlock, self).define_actions()
         self.add_line_action.triggered.connect(self.add_line)
         self.added_new_line.connect(self.parent.add_line)
 
@@ -412,8 +412,11 @@ class BaseLoopBlock(Block):
 
     def add_line(self):
         self.added_new_line.emit()
-        self.resize_block()
-        self.move_related_blocks()
+        current_block = self
+        while current_block is not None:
+            current_block.resize_block()
+            current_block.move_related_blocks()
+            current_block = current_block.general_block
 
     def resize_block_according_merged_block(self):
         if self.text_width > self.minimum_width:
@@ -456,9 +459,11 @@ class BaseLoopBlock(Block):
             previous_blocks_height += -4 - block.highest_layer.height()
             block.move(new_position)
             block.move_layer_down_block_to_parent()
+            if block.is_general_block:
+                block.move_related_blocks()
 
     def delete(self):
-        super(BaseLoopBlock, self).delete()
+        super(BaseGeneralBlock, self).delete()
         if not self.lines:
             return
         for block in self.lines:
@@ -471,9 +476,8 @@ class BaseLoopBlock(Block):
         self.resize_block()
 
     def get_full_self_func(self):
-        result = self.get_self_func()
         if self.layer_down_block is None:
-            return result
+            return self.get_self_func()
         construct = ''
         closing_bracket_countdown = []
         current_block = self
@@ -496,8 +500,13 @@ class BaseLoopBlock(Block):
         result = [self.get_full_self_func()]
         result[0] = result[0] + ':'
         for block in self.lines:
-            result.append('\t' + block.get_func())
+            result.extend(list(map(lambda x: '\t' + x, block.get_func().split('\n'))))
         return '\n'.join(result)
+
+
+class BaseLoopBlock(BaseGeneralBlock):
+    def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
+        super(BaseLoopBlock, self).__init__(parent, image, minimum_width, minimum_height)
 
 
 class ForLoopBlock(BaseLoopBlock):
@@ -529,6 +538,111 @@ class WhileLoopBlock(BaseLoopBlock):
         """создает контекстное меню блока"""
         menu = QtWidgets.QMenu(self)
         menu.addActions([self.delete_action, self.set_connection_action, self.merge_block_action, self.add_line_action])
+        menu.exec_(QtGui.QCursor.pos())
+
+    def get_self_func(self) -> str:
+        return self.arg
+
+
+class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
+    added_additional_block = QtCore.pyqtSignal()
+
+    def __init__(self, parent, image: QtGui.QPixmap, minimal_width: int = 50, minimal_height: int = 33):
+        super(Block, self).__init__(parent)
+        self.add_additional_block: QtWidgets.QAction = QtWidgets.QAction('add additional block', self)
+        self.layer_up_additional_block: BaseGeneralBlockWithAdditionalBlocks = None
+        self.layer_down_additional_block: BaseGeneralBlockWithAdditionalBlocks = None
+        super(BaseGeneralBlockWithAdditionalBlocks, self).__init__(parent, image,
+                                                                   minimum_width=minimal_width,
+                                                                   minimum_height=minimal_height)
+
+    def define_actions(self):
+        super(BaseGeneralBlockWithAdditionalBlocks, self).define_actions()
+        self.add_additional_block.triggered.connect(self.add_additional_block_method)
+        self.added_additional_block.connect(lambda: self.parent.add_additional_block())
+
+    def actions_menu(self) -> None:
+        """создает контекстное меню блока"""
+        menu = QtWidgets.QMenu(self)
+        menu.addActions([self.delete_action, self.set_connection_action, self.merge_block_action,
+                         self.add_additional_block, self.add_line_action])
+        menu.exec_(QtGui.QCursor.pos())
+
+    def add_additional_block_method(self):
+        self.added_additional_block.emit()
+        self.move_additional_blocks()
+
+    def move_additional_blocks(self):
+        current_block = self.highest_additional_block
+        while current_block.layer_down_additional_block is not None:
+            new_coords = QtCore.QPoint(current_block.x(), current_block.y() + current_block.height() + 1)
+            current_block.layer_down_additional_block.move(new_coords)
+            current_block = current_block.layer_down_additional_block
+
+    def move_related_blocks(self):
+        self.move_additional_blocks()
+        current_block = self
+        while current_block is not None:
+            current_block.move_layer_down_block_to_parent()
+            current_block.move_lines_to_general_block()
+            current_block = current_block.layer_down_additional_block
+
+    def delete(self):
+        super(BaseGeneralBlockWithAdditionalBlocks, self).delete()
+        if self.layer_up_additional_block is not None:
+            self.layer_up_additional_block.layer_down_additional_block = None
+        if self.layer_down_additional_block is not None:
+            self.layer_down_additional_block.delete()
+
+    @property
+    def highest_additional_block(self):
+        current_block = self
+        while current_block.layer_up_additional_block is not None:
+            current_block = current_block.layer_up_additional_block
+        return current_block
+
+    def get_func(self) -> str:
+        result = []
+        current_block = self
+        while current_block is not None:
+            result.append(current_block.get_full_self_func())
+            result[-1] = result[-1] + ':'
+            for block in current_block.lines:
+                result.extend(list(map(lambda x: '\t' + x, block.get_func().split('\n'))))
+            current_block = current_block.layer_down_additional_block
+        return '\n'.join(result)
+
+
+class IfBlock(BaseGeneralBlockWithAdditionalBlocks):
+    def __init__(self, parent):
+        super(IfBlock, self).__init__(parent, QtGui.QPixmap('./pictures/if.png'))
+        self.arg = 'if '
+        self.arg_label.setText(self.arg)
+
+    def get_self_func(self) -> str:
+        return self.arg
+
+
+class ElifBlock(BaseGeneralBlockWithAdditionalBlocks):
+    def __init__(self, parent):
+        super(ElifBlock, self).__init__(parent, QtGui.QPixmap('./pictures/if.png'))
+        self.arg = 'elif '
+        self.arg_label.setText(self.arg)
+
+    def get_self_func(self) -> str:
+        return self.arg
+
+
+class ElseBlock(BaseGeneralBlockWithAdditionalBlocks):
+    def __init__(self, parent):
+        super(ElseBlock, self).__init__(parent, QtGui.QPixmap('./pictures/if.png'))
+        self.arg = 'else '
+        self.arg_label.setText(self.arg)
+
+    def actions_menu(self) -> None:
+        """создает контекстное меню блока"""
+        menu = QtWidgets.QMenu(self)
+        menu.addActions([self.delete_action, self.set_connection_action, self.add_line_action])
         menu.exec_(QtGui.QCursor.pos())
 
     def get_self_func(self) -> str:
