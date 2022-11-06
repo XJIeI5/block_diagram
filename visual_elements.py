@@ -11,20 +11,20 @@ def get_line_rect_intersection(line: QtCore.QLine, widget: QtWidgets.QWidget) ->
     except ZeroDivisionError:
         s = 1
 
-    if -rect().height() <= s * rect().width() / 2 <= rect().height() / 2:
+    if -rect().height() <= s * rect().width() <= rect().height():
         if line.x1() < line.x2():  # Right
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
-                                                                 widget.mapToParent(rect().bottomLeft())))
+                                                                      widget.mapToParent(rect().bottomLeft())))
         else:  # Left
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topRight()),
-                                                                 widget.mapToParent(rect().bottomRight())))
+                                                                      widget.mapToParent(rect().bottomRight())))
     else:
         if line.y1() < line.y2():  # Up
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
-                                                                 widget.mapToParent(rect().topRight())))
+                                                                      widget.mapToParent(rect().topRight())))
         else:  # Down
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().bottomLeft()),
-                                                                 widget.mapToParent(rect().bottomRight())))
+                                                                      widget.mapToParent(rect().bottomRight())))
 
 
 def get_line_line_intersection(line1: QtCore.QLine, line2: QtCore.QLine) -> QtCore.QPoint:
@@ -64,12 +64,12 @@ class Arrow(QtWidgets.QWidget):
             x_right = QtCore.QPointF(self.destination)
 
             right_triangle = QtGui.QPainterPath()
-            right_triangle.lineTo(-0.4 * math.sqrt(3) * l, 0.3 * l)
-            right_triangle.lineTo(-0.4 * math.sqrt(3) * l, -0.3 * l)
+            right_triangle.lineTo(-0.3 * math.sqrt(3) * l, 0.2 * l)
+            right_triangle.lineTo(-0.3 * math.sqrt(3) * l, -0.2 * l)
             right_triangle.closeSubpath()
             right_triangle.translate(x_right)
 
-            painter.setBrush(QtGui.QColor("blue"))
+            painter.setBrush(QtGui.QColor("black"))
             painter.translate(self.destination)
 
             x1, y1 = self.begin.x(), self.begin.y()

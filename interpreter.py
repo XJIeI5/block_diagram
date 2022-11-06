@@ -2,7 +2,7 @@
 import subprocess
 import os
 from PyQt5 import QtCore, QtGui, QtWidgets
-from blocks import Block, StartBlock, EndBlock
+from blocks import BaseBlock, StartBlock, EndBlock
 from exceptions import SequenceError
 
 
@@ -10,13 +10,14 @@ class Interpreter:
     def __init__(self):
         self.__program = ''
 
-    def convert_to_py(self, blocks: list[Block]) -> str:
-        if blocks[0].__class__ != StartBlock and blocks[-1].__class__ != EndBlock:
+    def convert_to_py(self, blocks: list[BaseBlock]) -> str:
+        if StartBlock not in [i.__class__ for i in blocks] or EndBlock not in [i.__class__ for i in blocks]:
             return ''
         result = []
         # self.handle_errors(blocks)
+        print(blocks)
 
-        blocks = self.get_blocks_in_right_order(blocks[0])
+        blocks = self.get_blocks_in_right_order(next(i for i in blocks if i.__class__ == StartBlock))
         blocks_result = []
         for block in blocks:
             if block.layer_up_block is not None:
@@ -43,8 +44,8 @@ class Interpreter:
         return program
 
     def handle_errors(self, blocks):
-        current_block: Block = blocks[0]
-        inherited_from_start_blocks: list[Block] = []
+        current_block: BaseBlock = blocks[0]
+        inherited_from_start_blocks: list[BaseBlock] = []
         try:
             while current_block.__class__ != EndBlock:
                 if current_block.highest_layer != current_block:
@@ -76,7 +77,7 @@ class Interpreter:
             current_block = current_block.child
         return result
 
-    def execute(self, blocks: list[Block]):
+    def execute(self, blocks: list[BaseBlock]):
         self.__program = self.convert_to_py(blocks)
         with open('./execute.py', mode='w', encoding='utf-8') as file:
             file.write(self.__program)

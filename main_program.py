@@ -7,6 +7,8 @@ import blocks
 import interpreter
 import visual_elements
 from exceptions import SequenceError
+import save_diagram
+import os
 
 
 def excepthook(exc_type, exc_value, exc_tb):
@@ -32,10 +34,14 @@ class MainWindow:
         self.central_widget = QtWidgets.QWidget(main_window)
         self.central_widget.setObjectName("central_widget")
         main_window.setCentralWidget(self.central_widget)
+        main_window.statusBar()
+
 
         self.menu_bar = QtWidgets.QMenuBar(main_window)
         self.menu_bar.setObjectName("menu_bar")
         main_window.setMenuBar(self.menu_bar)
+
+        self.file_menu = self.menu_bar.addMenu('File')
 
         self.status_bar = QtWidgets.QStatusBar(main_window)
         self.status_bar.setObjectName("status_bar")
@@ -46,7 +52,11 @@ class MainWindow:
         self.add_for_loop_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/for.png'), 'for loop', self)
         self.add_while_loop_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/while.png'), 'while loop', self)
         self.add_if_block_action = QtWidgets.QAction(QtGui.QIcon('./pictures/if.png'), 'if block', self)
-        self.execute_program_action = QtWidgets.QAction('execute', self)
+        self.execute_program_action = QtWidgets.QAction('Execute', self)
+        self.save_file_action = QtWidgets.QAction('Save', self)
+        self.save_file_action.setShortcut('Ctrl+S')
+        self.save_as_file_action = QtWidgets.QAction('Save as', self)
+        self.open_file_action = QtWidgets.QAction('Open', self)
 
         self.block_toolbar = QtWidgets.QToolBar('blocks', self)
         main_window.addToolBar(self.block_toolbar)
@@ -55,7 +65,10 @@ class MainWindow:
         self.block_toolbar.addAction(self.add_for_loop_block_action)
         self.block_toolbar.addAction(self.add_while_loop_block_action)
         self.block_toolbar.addAction(self.add_if_block_action)
-        self.block_toolbar.addAction(self.execute_program_action)
+        self.menu_bar.addAction(self.execute_program_action)
+        self.file_menu.addAction(self.save_file_action)
+        self.file_menu.addAction(self.save_as_file_action)
+        self.file_menu.addAction(self.open_file_action)
 
 
 class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
@@ -66,6 +79,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.arrows: list[visual_elements.Arrow] = self.arrows
         self.connecting_parent = None
         self.connecting_child = None
+        self.current_file = None
         self.interpreter = interpreter.Interpreter()
 
         self.blocks = []
@@ -91,15 +105,18 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.add_while_loop_block_action.triggered.connect(lambda: self.add_block(blocks.WhileLoopBlock))
         self.add_if_block_action.triggered.connect(lambda: self.add_block(blocks.IfBlock))
         self.execute_program_action.triggered.connect(self.execute_program)
+        self.save_file_action.triggered.connect(self.save_file)
+        self.save_as_file_action.triggered.connect(self.save_as_file)
+        self.open_file_action.triggered.connect(self.open_file)
 
-    def add_block(self, block_type: blocks.Block.__class__) -> blocks.Block:
-        """добавляет block_type в окно программы, block_type обязательно должен быть наследником Block"""
+    def add_block(self, block_type: blocks.BaseBlock.__class__) -> blocks.BaseBlock:
+        """добавляет block_type в окно программы, block_type обязательно должен быть наследником BaseBlock"""
         if not self.state == ProgramState.PLACING:
             return
-        if not issubclass(block_type.__class__, blocks.Block.__class__):
+        if not issubclass(block_type.__class__, blocks.BaseBlock.__class__):
             return
         new_block = block_type(self)
-        self.blocks.insert(-1, new_block)
+        self.blocks.append(new_block)
         return new_block
 
     def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
@@ -115,7 +132,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         event.setDropAction(QtCore.Qt.DropAction.MoveAction)
         event.accept()
 
-    def move_blocks(self, source_block: blocks.Block, mouse_pos: QtCore.QPoint):
+    def move_blocks(self, source_block: blocks.BaseBlock, mouse_pos: QtCore.QPoint):
         current_block = source_block.highest_layer
         while current_block.general_block is not None:
             current_block = current_block.general_block
@@ -189,7 +206,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.change_state(ProgramState.PLACING)
 
     def delete_block(self):
-        sender_block: blocks.Block = self.sender()
+        sender_block: blocks.BaseBlock = self.sender()
         self.delete_from_blocks(sender_block)
         if sender_block.layer_down_block is not None:
             current_block = sender_block.layer_down_block
@@ -200,15 +217,18 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             sender_block.layer_up_block.layer_down_block = None
         self.recalculate_position()
 
-    def delete_from_blocks(self, block_to_delete: blocks.Block):
-        index = self.blocks.index(block_to_delete)
+    def delete_from_blocks(self, block_to_delete: blocks.BaseBlock):
+        try:
+            index = self.blocks.index(block_to_delete)
+        except ValueError:
+            return
         for block in self.blocks:
             if block.child == self.blocks[index]:
                 block.child = None
         del self.blocks[index]
 
     def merge_block(self):
-        parent_block: blocks.Block = self.sender()
+        parent_block: blocks.BaseBlock = self.sender()
         items_data = {'Method Block': blocks.MethodBlock, 'Variable Block': blocks.VariableBlock,
                       'Operator Block': blocks.OperatorBlock, 'Data Block': blocks.DataBlock,
                       'Logical Block': blocks.LogicalBlock, 'Function Block': blocks.FunctionBlock,
@@ -233,7 +253,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
 
     def add_additional_block(self):
         parent_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.sender()
-        items_data = {"Else Block": blocks.ElseBlock, "Elif Block": blocks.ElifBlock}
+        items_data = {"Else BaseBlock": blocks.ElseBlock, "Elif Block": blocks.ElifBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
             new_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.add_block(items_data[block_type])
@@ -246,6 +266,31 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                 new_block.layer_up_additional_block = new_layer_up_block
                 new_block.layer_down_additional_block = new_layer_down_block
                 new_layer_down_block.layer_up_additional_block = new_block
+
+    def save_file(self):
+        if self.current_file and os.path.exists(self.current_file):
+            save_diagram.fill_data_base(self.current_file, self.blocks)
+        else:
+            self.save_as_file()
+
+    def save_as_file(self):
+        file_name = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '.', filter='*.sqlite')[0]
+        if file_name:
+            save_diagram.fill_data_base(file_name, self.blocks)
+            self.current_file = file_name
+
+    def open_file(self):
+        clone_blocks = self.blocks.copy()
+        for block in clone_blocks:
+            block.delete()
+        file_name = QtWidgets.QFileDialog.getOpenFileName(self, 'Save File', '.', filter='*.sqlite')[0]
+        if file_name:
+            opened_blocks = save_diagram.load_data_base(file_name, self)
+            self.blocks = opened_blocks.copy()
+            for block in self.blocks:
+                block.resize_block()
+                block.move_related_blocks()
+            self.current_file = file_name
 
 
 if __name__ == '__main__':

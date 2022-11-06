@@ -6,7 +6,7 @@ import inspect
 import exceptions
 
 
-class Block(QtWidgets.QWidget):
+class BaseBlock(QtWidgets.QWidget):
     clicked = QtCore.pyqtSignal()
     deleted = QtCore.pyqtSignal()
     merged_new_block = QtCore.pyqtSignal()
@@ -14,16 +14,16 @@ class Block(QtWidgets.QWidget):
     """Родительский класс для блоков на схеме"""
 
     def __init__(self, parent, image: QtGui.QPixmap, minimum_width: int = 50, minimum_height: int = 33):
-        super(Block, self).__init__(parent)
+        super(BaseBlock, self).__init__(parent)
         self.parent = parent
         self.position = (0, 0)
         self.arg = ''
         self.child = None
         self.minimum_width = minimum_width
         self.minimum_height = minimum_height
-        self.general_block: Block = None
-        self.layer_up_block: Block = None
-        self.layer_down_block: Block = None
+        self.general_block: BaseBlock = None
+        self.layer_up_block: BaseBlock = None
+        self.layer_down_block: BaseBlock = None
         self.is_python_function = False
         self.is_general_block = False
 
@@ -41,7 +41,7 @@ class Block(QtWidgets.QWidget):
         self.initUI()
 
     def paintEvent(self, a0: QtGui.QPaintEvent) -> None:
-        super(Block, self).paintEvent(a0)
+        super(BaseBlock, self).paintEvent(a0)
         painter = QtGui.QPainter(self)
         painter.drawPixmap(self.rect(), self.pixmap)
         # painter.drawLine(self.rect().topLeft(), self.rect().bottomRight())
@@ -89,7 +89,7 @@ class Block(QtWidgets.QWidget):
         menu.exec_(QtGui.QCursor.pos())
 
     def mouseReleaseEvent(self, a0: QtGui.QMouseEvent) -> None:
-        super(Block, self).mouseReleaseEvent(a0)
+        super(BaseBlock, self).mouseReleaseEvent(a0)
         self.clicked.emit()
 
     def set_argument(self):
@@ -99,7 +99,7 @@ class Block(QtWidgets.QWidget):
         self.arg = new_arg
         self.arg_label.setText(self.arg)
         self.resize_block()
-        self.move_layer_down_block_to_parent()
+        self.move_related_blocks()
 
     def resize_block(self):
         if self.text_width > self.minimum_width:
@@ -130,19 +130,16 @@ class Block(QtWidgets.QWidget):
 
     @classmethod
     def is_overriding(cls, funcs_to_override: list):
-        if cls == Block.__class__:
+        if cls == BaseBlock.__class__:
             return
-        if not issubclass(cls, Block.__class__):
+        if not issubclass(cls, BaseBlock.__class__):
             return
         # if cls.get_func()
 
     def delete(self):
         self.deleteLater()
+        self.deleted.emit()
 
-        if self.highest_layer.general_block:
-            self.highest_layer.general_block.delete_related_block(self)
-            self.highest_layer.general_block.resize_block()
-            self.highest_layer.general_block.move_related_blocks()
         if self.layer_up_block is not None:
             self.layer_up_block.layer_down_block = None
             self.layer_up_block.resize_block()
@@ -150,7 +147,10 @@ class Block(QtWidgets.QWidget):
             self.highest_layer.move_related_blocks()
         if self.layer_down_block is not None:
             self.layer_down_block.delete()
-        self.deleted.emit()
+        if self.highest_layer.general_block:
+            self.highest_layer.general_block.delete_related_block(self)
+            self.highest_layer.general_block.resize_block()
+            self.highest_layer.general_block.move_related_blocks()
 
     def delete_related_block(self, block):
         """удаляет связанный с general_block блок, используется для инкапсуляции удаления блоков,
@@ -174,7 +174,7 @@ class Block(QtWidgets.QWidget):
             return
         self.merged_new_block.emit()
         self.resize_block()  # Здесь мы изменяем блок, к которому мерджили
-        self.move_related_blocks()
+        self.highest_layer.move_related_blocks()
         if self.highest_layer.general_block:
             current_block = self.highest_layer.general_block  # Здесь изменяем все обобщяющие (general) блоки
             while current_block is not None:
@@ -199,8 +199,9 @@ class Block(QtWidgets.QWidget):
             if current_block.is_python_function:
                 func = func.replace(')', '')
                 closing_bracket_countdown.append(current_block.layer_depth)
-            if 0 in closing_bracket_countdown:
+            while 0 in closing_bracket_countdown:
                 func += ')'
+                closing_bracket_countdown.remove(0)
             if closing_bracket_countdown:
                 closing_bracket_countdown = [i - 1 for i in closing_bracket_countdown]
             construct += func
@@ -233,7 +234,7 @@ class Block(QtWidgets.QWidget):
         return current_block
 
 
-class StartBlock(Block):
+class StartBlock(BaseBlock):
     """стартовый блок, обязательно должен быть в программе"""
 
     def __init__(self, parent):
@@ -248,7 +249,7 @@ class StartBlock(Block):
         return ''
 
 
-class EndBlock(Block):
+class EndBlock(BaseBlock):
     """конечный блок, обязательно должен быть в программе"""
 
     def __init__(self, parent):
@@ -261,7 +262,7 @@ class EndBlock(Block):
         return ''
 
 
-class MethodBlock(Block):
+class MethodBlock(BaseBlock):
     """блок для проведения операций над переменными"""
 
     def __init__(self, parent):
@@ -282,9 +283,10 @@ class MethodBlock(Block):
             self.arg = "." + new_arg + "()"
             self.arg_label.setText(self.arg)
             self.resize_block()
+            self.move_related_blocks()
 
 
-class VariableBlock(Block):
+class VariableBlock(BaseBlock):
     """блок, который обозначает переменную"""
 
     def __init__(self, parent):
@@ -294,7 +296,7 @@ class VariableBlock(Block):
         return self.arg + ' '
 
 
-class OperatorBlock(Block):
+class OperatorBlock(BaseBlock):
     """блок, который обозначает действия над данными"""
     
     def __init__(self, parent):
@@ -308,12 +310,13 @@ class OperatorBlock(Block):
             self.arg = new_arg
             self.arg_label.setText(self.arg)
             self.resize_block()
+            self.move_related_blocks()
 
     def get_self_func(self) -> str:
         return ' ' + self.arg + ' '
 
 
-class DataBlock(Block):
+class DataBlock(BaseBlock):
     """блок, который обозначает просто кусок данных, не присвоенных переменной"""
 
     def __init__(self, parent):
@@ -330,13 +333,15 @@ class DataBlock(Block):
                 self.arg = new_arg
                 self.arg_label.setText(self.arg)
                 self.resize_block()
+                self.move_related_blocks()
 
     def get_self_func(self) -> str:
         if self.data_type is not None:
             return self.data_type + '("' + self.arg + '")'
+        return ''
 
 
-class FunctionBlock(Block):
+class FunctionBlock(BaseBlock):
     def __init__(self, parent):
         super(FunctionBlock, self).__init__(parent, QtGui.QPixmap('pictures/function.png'))
         self.is_python_function = True
@@ -349,12 +354,13 @@ class FunctionBlock(Block):
             self.arg = new_arg + '()'
             self.arg_label.setText(self.arg)
             self.resize_block()
+            self.move_related_blocks()
 
     def get_self_func(self) -> str:
         return self.arg
 
 
-class DataTypeBlock(Block):
+class DataTypeBlock(BaseBlock):
     def __init__(self, parent):
         super(DataTypeBlock, self).__init__(parent, QtGui.QPixmap('./pictures/output.png'))
         self.is_python_function = True
@@ -367,12 +373,13 @@ class DataTypeBlock(Block):
             self.arg = new_arg + '()'
             self.arg_label.setText(self.arg)
             self.resize_block()
+            self.move_related_blocks()
 
     def get_self_func(self) -> str:
         return self.arg
 
 
-class LogicalBlock(Block):
+class LogicalBlock(BaseBlock):
     def __init__(self, parent):
         super(LogicalBlock, self).__init__(parent, QtGui.QPixmap('./pictures/operator.png'))
 
@@ -383,18 +390,19 @@ class LogicalBlock(Block):
             self.arg = new_arg + ' '
             self.arg_label.setText(self.arg)
             self.resize_block()
+            self.move_related_blocks()
 
     def get_self_func(self) -> str:
         return self.arg
 
 
-class BaseGeneralBlock(Block):
+class BaseGeneralBlock(BaseBlock):
     added_new_line = QtCore.pyqtSignal()
 
     def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
-        super(Block, self).__init__(parent)
+        super(BaseBlock, self).__init__(parent)
         self.add_line_action: QtWidgets.QAction = QtWidgets.QAction('add line', self)
-        self.lines: list[Block] = []
+        self.lines: list[BaseBlock] = []
         super(BaseGeneralBlock, self).__init__(parent, image, minimum_width, minimum_height)
         self.is_general_block = True
 
@@ -436,9 +444,9 @@ class BaseGeneralBlock(Block):
         added_height = 0
         maximum_block_width_in_lines = 0
         for block in self.lines:
-            added_height += 3 + block.highest_layer.height()
-            if block.highest_layer.width() > maximum_block_width_in_lines:
-                maximum_block_width_in_lines = block.highest_layer.width()
+            added_height += 3 + block.height()
+            if block.width() > maximum_block_width_in_lines:
+                maximum_block_width_in_lines = block.width()
         maximum_block_width_in_lines += 15
         new_width = self.width()
         if maximum_block_width_in_lines > new_width:
@@ -469,7 +477,7 @@ class BaseGeneralBlock(Block):
         for block in self.lines:
             block.delete()
 
-    def delete_related_block(self, block: Block):
+    def delete_related_block(self, block: BaseBlock):
         if block not in self.lines:
             return
         self.lines.remove(block)
@@ -522,7 +530,7 @@ class ForLoopBlock(BaseLoopBlock):
         self.arg = 'for ' + new_arg + ' in '
         self.arg_label.setText(self.arg)
         self.resize_block()
-        self.move_layer_down_block_to_parent()
+        self.move_related_blocks()
 
     def get_self_func(self) -> str:
         return self.arg
@@ -548,7 +556,7 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
     added_additional_block = QtCore.pyqtSignal()
 
     def __init__(self, parent, image: QtGui.QPixmap, minimal_width: int = 50, minimal_height: int = 33):
-        super(Block, self).__init__(parent)
+        super(BaseBlock, self).__init__(parent)
         self.add_additional_block: QtWidgets.QAction = QtWidgets.QAction('add additional block', self)
         self.layer_up_additional_block: BaseGeneralBlockWithAdditionalBlocks = None
         self.layer_down_additional_block: BaseGeneralBlockWithAdditionalBlocks = None
@@ -570,7 +578,7 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
 
     def add_additional_block_method(self):
         self.added_additional_block.emit()
-        self.move_additional_blocks()
+        self.move_related_blocks()
 
     def move_additional_blocks(self):
         current_block = self.highest_additional_block
@@ -589,10 +597,16 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
 
     def delete(self):
         super(BaseGeneralBlockWithAdditionalBlocks, self).delete()
+
         if self.layer_up_additional_block is not None:
-            self.layer_up_additional_block.layer_down_additional_block = None
+            if self.layer_down_additional_block:
+                self.layer_down_additional_block.layer_up_additional_block = self.layer_up_additional_block
         if self.layer_down_additional_block is not None:
-            self.layer_down_additional_block.delete()
+            if self.layer_up_additional_block:
+                self.layer_up_additional_block.layer_down_additional_block = self.layer_down_additional_block
+            else:
+                self.layer_down_additional_block.delete()
+        self.highest_additional_block.move_related_blocks()
 
     @property
     def highest_additional_block(self):
