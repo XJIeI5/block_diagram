@@ -20,7 +20,6 @@ class ProgramState(Enum):
     """состояния, в которых может находится программа"""
     PLACING = 1
     CONNECTING = 2
-    EXECUTING = 3
 
 
 class MainWindow:
@@ -119,10 +118,6 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.blocks.append(new_block)
         return new_block
 
-    def mousePressEvent(self, a0: QtGui.QMouseEvent) -> None:
-        if not self.state == ProgramState.CONNECTING:
-            return
-
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         event.accept()
 
@@ -133,6 +128,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         event.accept()
 
     def move_blocks(self, source_block: blocks.BaseBlock, mouse_pos: QtCore.QPoint):
+        """перемещает центр блока и все зависимые от него блоки в позицию мыши"""
         current_block = source_block.highest_layer
         while current_block.general_block is not None:
             current_block = current_block.general_block
@@ -141,12 +137,8 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         current_block.move(mouse_pos.x() - current_block.width() // 2, mouse_pos.y() - current_block.height() // 2)
         current_block.move_related_blocks()
 
-        # self.move_merged_blocks(current_block, mouse_pos)
-        # if current_block.lines:
-        #     current_block.move_lines_to_general_block()
-
     def recalculate_position(self) -> None:
-        """пересчитывает позицию QLine между блоками, между которыми установлена связь"""
+        """пересчитывает позицию Arrow между блоками, между которыми установлена связь"""
         arrows = []
         for previous_block in self.blocks:
             if not previous_block.child:
@@ -196,6 +188,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.recalculate_position()
 
     def execute_program(self):
+        """запускает выполнение составленной программы в консоли"""
         self.change_state(ProgramState.EXECUTING)
         try:
             self.interpreter.execute(self.blocks)
@@ -206,6 +199,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.change_state(ProgramState.PLACING)
 
     def delete_block(self):
+        """подчищает зависимости блка, который вызвал этот метод"""
         sender_block: blocks.BaseBlock = self.sender()
         self.delete_from_blocks(sender_block)
         if sender_block.layer_down_block is not None:
@@ -218,6 +212,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         self.recalculate_position()
 
     def delete_from_blocks(self, block_to_delete: blocks.BaseBlock):
+        """удаляет блок из списка блоков"""
         try:
             index = self.blocks.index(block_to_delete)
         except ValueError:
@@ -228,6 +223,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         del self.blocks[index]
 
     def merge_block(self):
+        """обеспечивает интерфейс для выбора блока для мержда, устанавливает зависимости"""
         parent_block: blocks.BaseBlock = self.sender()
         items_data = {'Method Block': blocks.MethodBlock, 'Variable Block': blocks.VariableBlock,
                       'Operator Block': blocks.OperatorBlock, 'Data Block': blocks.DataBlock,
@@ -241,6 +237,8 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             new_block.layer_up_block = parent_block
 
     def add_line(self):
+        """обеспечивает интерфейс для выбора блока для добавления к многострочной кострукции, устанавливает
+         зависимости"""
         parent_block: blocks.BaseGeneralBlock = self.sender()
         items_data = {"Functional Block": blocks.FunctionBlock, "If Block": blocks.IfBlock,
                       "Variable Block": blocks.VariableBlock, "For Loop Block": blocks.ForLoopBlock,
@@ -252,6 +250,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
             new_block.general_block = parent_block
 
     def add_additional_block(self):
+        """обеспечивает интерфейс для выобора дополнительной многострочной конструкции, устанавливает зависимости"""
         parent_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.sender()
         items_data = {"Else BaseBlock": blocks.ElseBlock, "Elif Block": blocks.ElifBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
@@ -268,18 +267,22 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                 new_layer_down_block.layer_up_additional_block = new_block
 
     def save_file(self):
+        """обеспечивает интерфейс для выбора директории для сохранения файла и его имени в случае, если никакой файл
+         открыт не был"""
         if self.current_file and os.path.exists(self.current_file):
             save_diagram.fill_data_base(self.current_file, self.blocks)
         else:
             self.save_as_file()
 
     def save_as_file(self):
+        """обеспечивает интерфейс для выбора директории для сохранения файла"""
         file_name = QtWidgets.QFileDialog.getSaveFileName(self, 'Save File', '.', filter='*.sqlite')[0]
         if file_name:
             save_diagram.fill_data_base(file_name, self.blocks)
             self.current_file = file_name
 
     def open_file(self):
+        """обеспечивает интерфейс для выбора загружаемого файла"""
         clone_blocks = self.blocks.copy()
         for block in clone_blocks:
             block.delete()

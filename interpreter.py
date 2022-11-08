@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import subprocess
-import os
-from PyQt5 import QtCore, QtGui, QtWidgets
 from blocks import BaseBlock, StartBlock, EndBlock
 from exceptions import SequenceError
 
@@ -14,10 +12,10 @@ class Interpreter:
         if StartBlock not in [i.__class__ for i in blocks] or EndBlock not in [i.__class__ for i in blocks]:
             return ''
         result = []
-        # self.handle_errors(blocks)
         print(blocks)
 
         blocks = self.get_blocks_in_right_order(next(i for i in blocks if i.__class__ == StartBlock))
+        self.handle_errors(blocks)
         blocks_result = []
         for block in blocks:
             if block.layer_up_block is not None:
@@ -44,29 +42,12 @@ class Interpreter:
         return program
 
     def handle_errors(self, blocks):
-        current_block: BaseBlock = blocks[0]
-        inherited_from_start_blocks: list[BaseBlock] = []
-        try:
-            while current_block.__class__ != EndBlock:
-                if current_block.highest_layer != current_block:
-                    continue
-                if current_block.highest_layer.general_block is not None:
-                    continue
-                if current_block.__class__ != StartBlock:
-                    if not any([i.highest_layer.child == current_block for i in inherited_from_start_blocks]):
-                        raise SequenceError
-                inherited_from_start_blocks.append(current_block)
-
-                if current_block.layer_depth != 0:
-                    current_block_down = current_block
-                    for i in range(current_block.layer_depth):
-                        current_block_down = current_block_down.layer_down_block
-                        inherited_from_start_blocks.append(current_block_down)
-
-                current_block = current_block.child
-        except AttributeError:
-            raise SequenceError
-        if len(inherited_from_start_blocks) + 1 < len(blocks):
+        current_block: BaseBlock = next(i for i in blocks if i.__class__ == StartBlock)
+        connected_blocks_classes = []
+        while current_block is not None:
+            connected_blocks_classes.append(current_block.__class__)
+            current_block = current_block.child
+        if EndBlock not in connected_blocks_classes:
             raise SequenceError
 
     def get_blocks_in_right_order(self, start_block: StartBlock):

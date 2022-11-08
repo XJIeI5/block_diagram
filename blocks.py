@@ -3,8 +3,6 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import builtins
 import inspect
 
-import exceptions
-
 
 class BaseBlock(QtWidgets.QWidget):
     clicked = QtCore.pyqtSignal()
@@ -44,10 +42,6 @@ class BaseBlock(QtWidgets.QWidget):
         super(BaseBlock, self).paintEvent(a0)
         painter = QtGui.QPainter(self)
         painter.drawPixmap(self.rect(), self.pixmap)
-        # painter.drawLine(self.rect().topLeft(), self.rect().bottomRight())
-        # painter.drawLine(self.rect().bottomLeft(), self.rect().topRight())
-        # painter.drawLine(self.arg_label.rect().topLeft(), self.arg_label.rect().bottomRight())
-        # painter.drawLine(self.arg_label.rect().bottomLeft(), self.arg_label.rect().topRight())
 
     def initUI(self) -> None:
         self.setFixedSize(self.minimum_width, self.minimum_height)
@@ -128,14 +122,6 @@ class BaseBlock(QtWidgets.QWidget):
     def text_width(self) -> float:
         return self.arg_label.fontMetrics().boundingRect(self.arg_label.text()).width() + 18
 
-    @classmethod
-    def is_overriding(cls, funcs_to_override: list):
-        if cls == BaseBlock.__class__:
-            return
-        if not issubclass(cls, BaseBlock.__class__):
-            return
-        # if cls.get_func()
-
     def delete(self):
         self.deleteLater()
         self.deleted.emit()
@@ -171,6 +157,7 @@ class BaseBlock(QtWidgets.QWidget):
 
     def merge_block(self):
         if self.layer_down_block:
+            self.parent.status_bar.showMessage("Can't merge another one block")
             return
         self.merged_new_block.emit()
         self.resize_block()  # Здесь мы изменяем блок, к которому мерджили
@@ -348,7 +335,8 @@ class FunctionBlock(BaseBlock):
 
     def set_argument(self):
         data_to_dialog = [name for name, func in sorted(vars(builtins).items())
-                          if inspect.isbuiltin(func) or inspect.isfunction(func)]
+                          if ('attr' not in name and 'is' not in name and '__' not in name) and
+                          inspect.isbuiltin(func) or inspect.isfunction(func)]
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose function', 'function:', data_to_dialog)
         if ok:
             self.arg = new_arg + '()'
@@ -366,8 +354,9 @@ class DataTypeBlock(BaseBlock):
         self.is_python_function = True
 
     def set_argument(self):
-        data_to_dialog = [name for name, func in sorted(vars(builtins).items())
-                          if inspect.isclass(func) and name.islower()]
+        data_to_dialog = ['bool', 'bytearray', 'bytes', 'classmethod', 'complex', 'dict', 'enumerate', 'float',
+                          'frozenset', 'int', 'list', 'memoryview', 'object', 'property', 'range', 'reversed',
+                          'set', 'slice', 'staticmethod', 'str', 'super', 'tuple', 'type']
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose data type', 'data type:', data_to_dialog)
         if ok:
             self.arg = new_arg + '()'
