@@ -115,6 +115,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         if not issubclass(block_type.__class__, blocks.BaseBlock.__class__):
             return
         new_block = block_type(self)
+        new_block.move(15, self.menu_bar.height() + self.block_toolbar.height() + 15)
         self.blocks.append(new_block)
         return new_block
 
