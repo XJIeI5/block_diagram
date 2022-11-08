@@ -190,7 +190,6 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
 
     def execute_program(self):
         """запускает выполнение составленной программы в консоли"""
-        self.change_state(ProgramState.EXECUTING)
         try:
             self.interpreter.execute(self.blocks)
         except ValueError as error:

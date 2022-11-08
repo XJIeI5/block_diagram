@@ -133,10 +133,12 @@ class BaseBlock(QtWidgets.QWidget):
             self.highest_layer.move_related_blocks()
         if self.layer_down_block is not None:
             self.layer_down_block.delete()
-        if self.highest_layer.general_block:
-            self.highest_layer.general_block.delete_related_block(self)
-            self.highest_layer.general_block.resize_block()
-            self.highest_layer.general_block.move_related_blocks()
+        current_block = self.highest_layer.general_block
+        while current_block is not None:
+            current_block.delete_related_block(self)
+            current_block.resize_block()
+            current_block.move_related_blocks()
+            current_block = current_block.highest_layer.general_block
 
     def delete_related_block(self, block):
         """удаляет связанный с general_block блок, используется для инкапсуляции удаления блоков,
@@ -373,7 +375,7 @@ class LogicalBlock(BaseBlock):
         super(LogicalBlock, self).__init__(parent, QtGui.QPixmap('./pictures/operator.png'))
 
     def set_argument(self):
-        data_to_dialog = ['==', '!=', '>', '<', '>=', '<=']
+        data_to_dialog = ['==', '!=', '>', '<', '>=', '<=', 'not', 'in']
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose operator', 'operator:', data_to_dialog)
         if ok:
             self.arg = new_arg + ' '
@@ -590,12 +592,30 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
         if self.layer_up_additional_block is not None:
             if self.layer_down_additional_block:
                 self.layer_down_additional_block.layer_up_additional_block = self.layer_up_additional_block
+            else:
+                self.layer_up_additional_block.layer_down_additional_block = None
         if self.layer_down_additional_block is not None:
             if self.layer_up_additional_block:
                 self.layer_up_additional_block.layer_down_additional_block = self.layer_down_additional_block
             else:
-                self.layer_down_additional_block.delete()
+                blocks_to_delete = []
+                current_block = self.layer_down_additional_block
+                while current_block is not None:
+                    blocks_to_delete.append(current_block)
+                    current_block = current_block.layer_down_additional_block
+
+                for block in blocks_to_delete:
+                    block.delete()
         self.highest_additional_block.move_related_blocks()
+
+    @property
+    def additional_blocks_depth(self) -> int:
+        depth = 0
+        current_block = self
+        while current_block.layer_down_additional_block is not None:
+            depth += 1
+            current_block = current_block.layer_down_additional_block
+        return depth
 
     @property
     def highest_additional_block(self):
@@ -603,6 +623,15 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
         while current_block.layer_up_additional_block is not None:
             current_block = current_block.layer_up_additional_block
         return current_block
+
+    @property
+    def all_additional_blocks_classes(self) -> list:
+        result = []
+        current_block = self
+        while current_block is not None:
+            result.append(current_block.__class__)
+            current_block = current_block.layer_down_additional_block
+        return result
 
     def get_func(self) -> str:
         result = []
@@ -622,6 +651,12 @@ class IfBlock(BaseGeneralBlockWithAdditionalBlocks):
         self.arg = 'if '
         self.arg_label.setText(self.arg)
 
+    def add_additional_block_method(self):
+        super(IfBlock, self).add_additional_block_method()
+        if self.all_additional_blocks_classes.count(ElseBlock) >= 2:
+            self.layer_down_additional_block.delete()
+            self.parent.status_bar.showMessage("Can't add another one Else")
+
     def get_self_func(self) -> str:
         return self.arg
 
@@ -631,6 +666,12 @@ class ElifBlock(BaseGeneralBlockWithAdditionalBlocks):
         super(ElifBlock, self).__init__(parent, QtGui.QPixmap('./pictures/if.png'))
         self.arg = 'elif '
         self.arg_label.setText(self.arg)
+
+    def add_additional_block_method(self):
+        super(ElifBlock, self).add_additional_block_method()
+        if self.all_additional_blocks_classes.count(ElseBlock) >= 2:
+            self.layer_down_additional_block.delete()
+            self.parent.status_bar.showMessage("Can't add another one Else")
 
     def get_self_func(self) -> str:
         return self.arg
