@@ -119,7 +119,7 @@ class BaseBlock(QtWidgets.QWidget):
             current_block = current_block.layer_down_block
 
     @property
-    def text_width(self) -> float:
+    def text_width(self) -> int:
         return self.arg_label.fontMetrics().boundingRect(self.arg_label.text()).width() + 18
 
     def delete(self):
@@ -393,9 +393,30 @@ class BaseGeneralBlock(BaseBlock):
     def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
         super(BaseBlock, self).__init__(parent)
         self.add_line_action: QtWidgets.QAction = QtWidgets.QAction('add line', self)
-        self.lines: list[BaseBlock] = []
+        self._lines: list[BaseBlock] = []
         super(BaseGeneralBlock, self).__init__(parent, image, minimum_width, minimum_height)
         self.is_general_block = True
+
+    @property
+    def lines(self) -> list[BaseBlock]:
+        result: list[BaseBlock] = []
+        for block in self._lines:
+            if issubclass(block.__class__, BaseGeneralBlockWithAdditionalBlocks):
+                additional_blocks = []
+                current_block = block
+                while current_block is not None:
+                    if current_block not in additional_blocks and current_block not in result:
+                        additional_blocks.append(current_block)
+                    current_block = current_block.layer_down_additional_block
+                result.extend(additional_blocks)
+            else:
+                if block not in result:
+                    result.append(block)
+        return result
+
+    @lines.setter
+    def lines(self, value):
+        self._lines.extend(value)
 
     def define_actions(self):
         super(BaseGeneralBlock, self).define_actions()
@@ -411,11 +432,8 @@ class BaseGeneralBlock(BaseBlock):
 
     def add_line(self):
         self.added_new_line.emit()
-        current_block = self
-        while current_block is not None:
-            current_block.resize_block()
-            current_block.move_related_blocks()
-            current_block = current_block.general_block
+        self.resize_block()
+        self.move_related_blocks()
 
     def resize_block_according_merged_block(self):
         if self.text_width > self.minimum_width:
@@ -443,6 +461,8 @@ class BaseGeneralBlock(BaseBlock):
         if maximum_block_width_in_lines > new_width:
             new_width = maximum_block_width_in_lines
         self.setFixedSize(new_width, self.height() + added_height)
+        if self.general_block:
+            self.general_block.resize_block()
 
     def move_related_blocks(self):
         self.move_layer_down_block_to_parent()
@@ -471,7 +491,10 @@ class BaseGeneralBlock(BaseBlock):
     def delete_related_block(self, block: BaseBlock):
         if block not in self.lines:
             return
-        self.lines.remove(block)
+        try:
+            self._lines.remove(block)
+        except ValueError:
+            pass
         self.resize_block()
 
     def get_full_self_func(self):
@@ -485,8 +508,9 @@ class BaseGeneralBlock(BaseBlock):
             if current_block.is_python_function:
                 func = func.replace(')', '')
                 closing_bracket_countdown.append(current_block.layer_depth)
-            if 0 in closing_bracket_countdown:
+            while 0 in closing_bracket_countdown:
                 func += ')'
+                closing_bracket_countdown.remove(0)
             if closing_bracket_countdown:
                 closing_bracket_countdown = [i - 1 for i in closing_bracket_countdown]
             construct += func
@@ -570,6 +594,8 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
     def add_additional_block_method(self):
         self.added_additional_block.emit()
         self.move_related_blocks()
+        self.resize_block()
+        print(self.general_block.lines)
 
     def move_additional_blocks(self):
         current_block = self.highest_additional_block
@@ -587,6 +613,8 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
             current_block = current_block.layer_down_additional_block
 
     def delete(self):
+        if self.general_block:
+            print(self.general_block.lines)
         super(BaseGeneralBlockWithAdditionalBlocks, self).delete()
 
         if self.layer_up_additional_block is not None:
@@ -607,6 +635,8 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
                 for block in blocks_to_delete:
                     block.delete()
         self.highest_additional_block.move_related_blocks()
+        if self.general_block:
+            self.highest_general_block.resize_block()
 
     @property
     def additional_blocks_depth(self) -> int:
@@ -635,13 +665,10 @@ class BaseGeneralBlockWithAdditionalBlocks(BaseGeneralBlock):
 
     def get_func(self) -> str:
         result = []
-        current_block = self
-        while current_block is not None:
-            result.append(current_block.get_full_self_func())
-            result[-1] = result[-1] + ':'
-            for block in current_block.lines:
-                result.extend(list(map(lambda x: '\t' + x, block.get_func().split('\n'))))
-            current_block = current_block.layer_down_additional_block
+        result.append(self.get_full_self_func())
+        result[-1] = result[-1] + ':'
+        for block in self.lines:
+            result.extend(list(map(lambda x: '\t' + x, block.get_func().split('\n'))))
         return '\n'.join(result)
 
 

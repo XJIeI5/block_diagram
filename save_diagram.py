@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 import sqlite3
 import inspect
@@ -116,8 +117,6 @@ def load_data_base(db_name: str, blocks_parent) -> list[blocks.BaseBlock]:
             arg = cursor.execute(f'SELECT Argument FROM Blocks WHERE Hash == {block_hash}').fetchone()[0]
             block.arg = arg
             block.arg_label.setText(arg)
-            block.resize_block()
-            block.move_related_blocks()
 
         # Задаем зависимости
         for block_hash, block in hashed_blocks.items():
@@ -130,8 +129,15 @@ def load_data_base(db_name: str, blocks_parent) -> list[blocks.BaseBlock]:
                 if hasattr(block, attr_name):
                     if isinstance(attr_value, int):
                         new_value = hashed_blocks.get(attr_value, None)
+                    elif attr_value and '[' in attr_value and ']' in attr_value:
+                        new_value = attr_value[1:-1].split(',')
+                        new_value = [hashed_blocks[int(i)] for i in new_value]
                     else:
                         new_value = attr_value
                     setattr(block, attr_name, new_value)
+
+        for block in hashed_blocks.values():
+            block.resize_block()
+            block.move_related_blocks()
 
         return result_blocks

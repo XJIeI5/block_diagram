@@ -246,7 +246,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
             new_block = self.add_block(items_data[block_type])
-            parent_block.lines.append(new_block)
+            parent_block._lines.append(new_block)
             new_block.general_block = parent_block
 
     def add_additional_block(self):
@@ -265,6 +265,9 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                 new_block.layer_up_additional_block = new_layer_up_block
                 new_block.layer_down_additional_block = new_layer_down_block
                 new_layer_down_block.layer_up_additional_block = new_block
+
+            if parent_block.general_block:
+                new_block.general_block = parent_block.general_block
 
     def save_file(self):
         """обеспечивает интерфейс для выбора директории для сохранения файла и его имени в случае, если никакой файл

@@ -38,6 +38,7 @@ class Interpreter:
         program.append('\tpass')
         program.append('except BaseException:')
         program.append('\tprint(traceback.format_exc())')
+        program.append('\tinput("press ENTER to close")')
         program.append('input("press ENTER to close")')
         return program
 
