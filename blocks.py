@@ -11,7 +11,7 @@ class BaseBlock(QtWidgets.QWidget):
 
     """Родительский класс для блоков на схеме"""
 
-    def __init__(self, parent, image: QtGui.QPixmap, minimum_width: int = 50, minimum_height: int = 33):
+    def __init__(self, parent, image: QtGui.QPixmap, minimum_width: int = 55, minimum_height: int = 35):
         super(BaseBlock, self).__init__(parent)
         self.parent = parent
         self.position = (0, 0)
@@ -26,7 +26,9 @@ class BaseBlock(QtWidgets.QWidget):
         self.is_general_block = False
 
         self.pixmap = QtGui.QPixmap(image)
-        self.arg_label = QtWidgets.QLabel(self, alignment=QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.arg_label = QtWidgets.QLabel(self)
+        self.arg_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+        self.arg_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
 
         self.layout = QtWidgets.QHBoxLayout(self)
         self.layout.addWidget(self.arg_label)
@@ -94,12 +96,18 @@ class BaseBlock(QtWidgets.QWidget):
         self.arg_label.setText(self.arg)
         self.resize_block()
         self.move_related_blocks()
+        self.setFixedSize(self.width(), self.height() + 5)
 
     def resize_block(self):
         if self.text_width > self.minimum_width:
             self.setFixedSize(self.text_width, self.height())
         else:
             self.setFixedSize(self.minimum_width, self.height())
+
+        if self.text_height > self.minimum_height:
+            self.setFixedSize(self.width(), self.text_height)
+        else:
+            self.setFixedSize(self.width(), self.minimum_height)
 
         if self.layer_down_block is not None:
             self.setFixedSize(self.layer_down_block.width() + 18 + self.text_width, self.layer_down_block.height() + 8)
@@ -120,7 +128,11 @@ class BaseBlock(QtWidgets.QWidget):
 
     @property
     def text_width(self) -> int:
-        return self.arg_label.fontMetrics().boundingRect(self.arg_label.text()).width() + 18
+        return self.arg_label.fontMetrics().boundingRect(self.arg_label.text()).width() + 28
+
+    @property
+    def text_height(self) -> int:
+        return self.arg_label.fontMetrics().boundingRect(self.arg_label.text()).height() + 23
 
     def delete(self):
         self.deleteLater()
@@ -290,7 +302,7 @@ class VariableBlock(BaseBlock):
 
 class OperatorBlock(BaseBlock):
     """блок, который обозначает действия над данными"""
-    
+
     def __init__(self, parent):
         super(OperatorBlock, self).__init__(parent, QtGui.QPixmap('./pictures/operator.png'))
 
@@ -399,16 +411,16 @@ class LogicalBlock(BaseBlock):
 class BaseGeneralBlock(BaseBlock):
     added_new_line = QtCore.pyqtSignal()
 
-    def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
+    def __init__(self, parent, image: QtGui.QPixmap, minimum_width: int = 50, minimum_height: int = 33):
         super(BaseBlock, self).__init__(parent)
         self.add_line_action: QtWidgets.QAction = QtWidgets.QAction('add line', self)
-        self._lines: list[BaseBlock] = []
+        self._lines = []
         super(BaseGeneralBlock, self).__init__(parent, image, minimum_width, minimum_height)
         self.is_general_block = True
 
     @property
-    def lines(self) -> list[BaseBlock]:
-        result: list[BaseBlock] = []
+    def lines(self):
+        result = []
         for block in self._lines:
             if issubclass(block.__class__, BaseGeneralBlockWithAdditionalBlocks):
                 additional_blocks = []
@@ -537,7 +549,7 @@ class BaseGeneralBlock(BaseBlock):
 
 
 class BaseLoopBlock(BaseGeneralBlock):
-    def __init__(self, parent, image: QtGui.QPixmap,  minimum_width: int = 50, minimum_height: int = 33):
+    def __init__(self, parent, image: QtGui.QPixmap, minimum_width: int = 50, minimum_height: int = 33):
         super(BaseLoopBlock, self).__init__(parent, image, minimum_width, minimum_height)
 
 

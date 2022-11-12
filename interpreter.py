@@ -8,7 +8,7 @@ class Interpreter:
     def __init__(self):
         self.__program = ''
 
-    def convert_to_py(self, blocks: list[BaseBlock]) -> str:
+    def convert_to_py(self, blocks) -> str:
         if StartBlock not in [i.__class__ for i in blocks] or EndBlock not in [i.__class__ for i in blocks]:
             return ''
         result = []
@@ -29,7 +29,7 @@ class Interpreter:
         result = self.add_standart_code(result)
         return '\n'.join(result)
 
-    def add_standart_code(self, program: list[str]) -> list[str]:
+    def add_standart_code(self, program):
         program.insert(0, 'try:')
         program.insert(0, 'import traceback')
         program.append('')
@@ -58,7 +58,7 @@ class Interpreter:
             current_block = current_block.child
         return result
 
-    def execute(self, blocks: list[BaseBlock]):
+    def execute(self, blocks):
         self.__program = self.convert_to_py(blocks)
         with open('./execute.py', mode='w', encoding='utf-8') as file:
             file.write(self.__program)

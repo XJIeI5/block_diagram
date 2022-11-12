@@ -90,7 +90,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     def initUI(self) -> None:
         start = blocks.StartBlock(self)
         start.move(self.rect().center().x() - start.rect().width() // 2,
-                   0 + self.block_toolbar.rect().height() + self.menu_bar.rect().height())
+                   0 + self.block_toolbar.rect().height() + self.menu_bar.rect().height() + 30)
         self.blocks.append(start)
 
         end = blocks.EndBlock(self)

@@ -6,7 +6,7 @@ import blocks
 import json
 
 
-def get_values() -> tuple[str]:
+def get_values():
     classes = inspect.getmembers(sys.modules['blocks'], inspect.isclass)
     result = enumerate(classes)
     result = tuple(map(lambda x: ', '.join([str(x[0] + 1), '"' + x[1][0] + '"']), result))
@@ -42,7 +42,7 @@ def create_data_base(name: str):
         LayerDownAdditionalBlockHash INT)''')
 
 
-def fill_data_base(db_name: str, blocks_to_fill: list[blocks.BaseBlock]):
+def fill_data_base(db_name: str, blocks_to_fill):
     with sqlite3.connect(db_name) as con:
         cursor = con.cursor()
         try:
@@ -86,10 +86,10 @@ def fill_data_base(db_name: str, blocks_to_fill: list[blocks.BaseBlock]):
             cursor.execute(f'INSERT INTO Blocks VALUES({data})')
 
 
-def load_data_base(db_name: str, blocks_parent) -> list[blocks.BaseBlock]:
+def load_data_base(db_name: str, blocks_parent):
     with sqlite3.connect(db_name) as con:
         cursor = con.cursor()
-        result_blocks: list[blocks.BaseBlock] = []
+        result_blocks = []
         hashed_blocks: dict[int: blocks.BaseBlock] = {}
 
         # Создаем блоки
