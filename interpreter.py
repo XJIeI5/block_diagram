@@ -12,7 +12,6 @@ class Interpreter:
         if StartBlock not in [i.__class__ for i in blocks] or EndBlock not in [i.__class__ for i in blocks]:
             return ''
         result = []
-        print(blocks)
 
         blocks = self.get_blocks_in_right_order(next(i for i in blocks if i.__class__ == StartBlock))
         self.handle_errors(blocks)
