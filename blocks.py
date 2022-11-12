@@ -267,12 +267,15 @@ class MethodBlock(BaseBlock):
         method_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose method', 'method type:',
                                                          data_to_dialog.keys())
         if ok:
-            new_arg, ok2 = QtWidgets.QInputDialog.getItem(self, 'Choose method', 'method name:',
-                                                          reversed(data_to_dialog[method_type]))
-            self.arg = "." + new_arg + "()"
-            self.arg_label.setText(self.arg)
-            self.resize_block()
-            self.move_related_blocks()
+            try:
+                new_arg, ok2 = QtWidgets.QInputDialog.getItem(self, 'Choose method', 'method name:',
+                                                              reversed(data_to_dialog[method_type]))
+                self.arg = "." + new_arg + "()"
+                self.arg_label.setText(self.arg)
+                self.resize_block()
+                self.move_related_blocks()
+            except KeyError:
+                self.parent.status_bar.showMessage('Incorrect Block type')
 
 
 class VariableBlock(BaseBlock):
@@ -316,6 +319,9 @@ class DataBlock(BaseBlock):
         data_to_dialog = ['str', 'int', 'float', 'bool', 'lict', 'tuple', 'dict', 'set']
         data_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose data type', 'data type:', data_to_dialog)
         if ok:
+            if data_type not in data_to_dialog:
+                self.parent.status_ber.showMessage('Incorrect Block type')
+                return
             new_arg, ok2 = QtWidgets.QInputDialog.getText(self, 'Type data', 'data:')
             if ok2:
                 self.data_type = data_type
@@ -341,6 +347,9 @@ class FunctionBlock(BaseBlock):
                           inspect.isbuiltin(func) or inspect.isfunction(func)]
         new_arg, ok = QtWidgets.QInputDialog.getItem(self, 'Choose function', 'function:', data_to_dialog)
         if ok:
+            if new_arg not in data_to_dialog:
+                self.parent.status_bar.showMessage('Incorrect Block type')
+                return
             self.arg = new_arg + '()'
             self.arg_label.setText(self.arg)
             self.resize_block()

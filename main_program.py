@@ -28,7 +28,7 @@ class MainWindow:
         super(MainWindow, self).__init__()
 
     def setup(self, main_window: QtWidgets.QMainWindow):
-        main_window.setWindowTitle('Тест')
+        main_window.setWindowTitle('test')
         main_window.setMinimumSize(800, 700)
         self.central_widget = QtWidgets.QWidget(main_window)
         self.central_widget.setObjectName("central_widget")
@@ -231,10 +231,12 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                       'Data Type Block': blocks.DataTypeBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
-            new_block = self.add_block(items_data[block_type])
-
-            parent_block.layer_down_block = new_block
-            new_block.layer_up_block = parent_block
+            try:
+                new_block = self.add_block(items_data[block_type])
+                parent_block.layer_down_block = new_block
+                new_block.layer_up_block = parent_block
+            except KeyError:
+                self.status_bar.showMessage('Incorrect Block type')
 
     def add_line(self):
         """обеспечивает интерфейс для выбора блока для добавления к многострочной кострукции, устанавливает
@@ -245,9 +247,12 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                       "While Loop Block": blocks.WhileLoopBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
-            new_block = self.add_block(items_data[block_type])
-            parent_block._lines.append(new_block)
-            new_block.general_block = parent_block
+            try:
+                new_block = self.add_block(items_data[block_type])
+                parent_block._lines.append(new_block)
+                new_block.general_block = parent_block
+            except KeyError:
+                self.status_bar.showMessage('Incorrect Block type')
 
     def add_additional_block(self):
         """обеспечивает интерфейс для выобора дополнительной многострочной конструкции, устанавливает зависимости"""
@@ -255,7 +260,10 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         items_data = {"Else BaseBlock": blocks.ElseBlock, "Elif Block": blocks.ElifBlock}
         block_type, ok = QtWidgets.QInputDialog.getItem(self, 'Choose block type', 'block type:', items_data.keys())
         if ok:
-            new_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.add_block(items_data[block_type])
+            try:
+                new_block: blocks.BaseGeneralBlockWithAdditionalBlocks = self.add_block(items_data[block_type])
+            except KeyError:
+                self.status_bar.showMessage('Incorrect Block type')
             if parent_block.layer_down_additional_block is None:
                 parent_block.layer_down_additional_block = new_block
                 new_block.layer_up_additional_block = parent_block
@@ -283,6 +291,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
         if file_name:
             save_diagram.fill_data_base(file_name, self.blocks)
             self.current_file = file_name
+            self.setWindowTitle(self.current_file)
 
     def open_file(self):
         """обеспечивает интерфейс для выбора загружаемого файла"""
@@ -297,6 +306,7 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                 block.resize_block()
                 block.move_related_blocks()
             self.current_file = file_name
+            self.setWindowTitle(self.current_file)
 
 
 if __name__ == '__main__':
