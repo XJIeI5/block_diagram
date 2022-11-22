@@ -25,6 +25,7 @@ class ProgramState(Enum):
 
 class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
     """основное окно"""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.state: ProgramState = ProgramState.PLACING
@@ -102,7 +103,8 @@ class Program(QtWidgets.QMainWindow, MainWindow, visual_elements.Drawer):
                 line = QtCore.QLine(previous_block.pos() + previous_block.rect().center(),
                                     next_block.pos() + next_block.rect().center())
                 intersect_point = visual_elements.get_line_rect_intersection(line, next_block)
-                new_arrow = visual_elements.Arrow(previous_block.pos() + previous_block.rect().center(), intersect_point)
+                new_arrow = visual_elements.Arrow(previous_block.pos() + previous_block.rect().center(),
+                                                  intersect_point)
                 arrows.append(new_arrow)
             except RuntimeError:
                 previous_block.child = None

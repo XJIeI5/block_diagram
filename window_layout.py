@@ -1,8 +1,9 @@
-from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt5 import QtWidgets, QtGui
 
 
 class MainWindow:
     """макет для основоного окна программы"""
+
     def __init__(self):
         super(MainWindow, self).__init__()
 
@@ -13,7 +14,6 @@ class MainWindow:
         self.central_widget.setObjectName("central_widget")
         main_window.setCentralWidget(self.central_widget)
         main_window.statusBar()
-
 
         self.menu_bar = QtWidgets.QMenuBar(main_window)
         self.menu_bar.setObjectName("menu_bar")

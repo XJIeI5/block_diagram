@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-import sys
-import sqlite3
 import inspect
-import blocks
 import json
+import sqlite3
+import sys
+
+import blocks
 
 
 def get_values():

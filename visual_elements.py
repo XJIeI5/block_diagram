@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from PyQt5 import QtCore, QtGui, QtWidgets
 import math
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 def get_line_rect_intersection(line: QtCore.QLine, widget: QtWidgets.QWidget) -> QtCore.QPoint:

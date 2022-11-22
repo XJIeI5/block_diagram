@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from PyQt5 import QtCore, QtGui, QtWidgets
 import builtins
 import inspect
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class BaseBlock(QtWidgets.QWidget):
