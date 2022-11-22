@@ -14,17 +14,17 @@ def get_line_rect_intersection(line: QtCore.QLine, widget: QtWidgets.QWidget) ->
     if -rect().height() <= s * rect().width() <= rect().height():
         if line.x1() < line.x2():  # Right
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
-                                                                      widget.mapToParent(rect().bottomLeft())))
+                                                                 widget.mapToParent(rect().bottomLeft())))
         else:  # Left
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topRight()),
-                                                                      widget.mapToParent(rect().bottomRight())))
+                                                                 widget.mapToParent(rect().bottomRight())))
     else:
         if line.y1() < line.y2():  # Up
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().topLeft()),
-                                                                      widget.mapToParent(rect().topRight())))
+                                                                 widget.mapToParent(rect().topRight())))
         else:  # Down
             return get_line_line_intersection(line, QtCore.QLine(widget.mapToParent(rect().bottomLeft()),
-                                                                      widget.mapToParent(rect().bottomRight())))
+                                                                 widget.mapToParent(rect().bottomRight())))
 
 
 def get_line_line_intersection(line1: QtCore.QLine, line2: QtCore.QLine) -> QtCore.QPoint:
