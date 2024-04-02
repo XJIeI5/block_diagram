@@ -5,7 +5,6 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 def get_line_rect_intersection(line: QtCore.QLine, widget: QtWidgets.QWidget) -> QtCore.QPoint:
-    x, y = 0, 0
     rect = widget.rect
     try:
         s = (line.y1() - line.y2()) / (line.x1() - line.x2())
