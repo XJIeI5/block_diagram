@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from PyQt5 import QtWidgets, QtGui
 
 
@@ -8,7 +9,7 @@ class MainWindow:
         super(MainWindow, self).__init__()
 
     def setup(self, main_window: QtWidgets.QMainWindow):
-        main_window.setWindowTitle('test')
+        main_window.setWindowTitle('Untitled')
         main_window.setMinimumSize(800, 700)
         self.central_widget = QtWidgets.QWidget(main_window)
         self.central_widget.setObjectName("central_widget")
