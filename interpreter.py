@@ -6,7 +6,7 @@ from exceptions import SequenceError
 
 class Interpreter:
     def __init__(self):
-        self.__program = ''
+        self.__program: str = ''
 
     def convert_to_py(self, blocks) -> str:
         if StartBlock not in [i.__class__ for i in blocks] or EndBlock not in [i.__class__ for i in blocks]:
