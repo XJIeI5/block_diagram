@@ -98,6 +98,7 @@ class BaseBlock(QtWidgets.QWidget):
         self.resize_block()
         self.move_related_blocks()
         self.setFixedSize(self.width(), self.height() + 5)
+        self.resize_block()
 
     def resize_block(self):
         if self.text_width > self.minimum_width:
@@ -185,6 +186,7 @@ class BaseBlock(QtWidgets.QWidget):
                 current_block = current_block.general_block
         if issubclass(self.highest_layer.__class__, BaseGeneralBlockWithAdditionalBlocks):
             self.highest_layer.move_related_blocks()
+        self.highest_layer.resize_block()
 
     def get_self_func(self) -> str:
         return ''
