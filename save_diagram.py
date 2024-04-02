@@ -58,20 +58,20 @@ def fill_data_base(db_name: str, blocks_to_fill):
                                            f' WHERE Name == "{block.__class__.__name__}"').fetchone()[0]
 
             x_coord, y_coord = block.x(), block.y()
-
-            argument = '"' + block.arg + '"'
-
-            data_type = '"' + block.data_type + '"' if hasattr(block, 'data_type') else 'NULL'
-
+            
+            argument = f'"{block.arg}"'
+            
+            data_type = f'"{block.data_type}"' if hasattr(block, 'data_type') else 'NULL'
+            
             block_child = hash(block.child) if block.child else 'NULL'
-
+            
             layer_up_block_hash = hash(block.layer_up_block) if block.layer_up_block else 'NULL'
-
+            
             layer_down_block_hash = hash(block.layer_down_block) if block.layer_down_block else 'NULL'
-
+            
             general_block_hash = hash(block.general_block) if block.general_block else 'NULL'
 
-            lines_hash = '"' + json.dumps(tuple(map(hash, block.lines))) + '"' if \
+            lines_hash = f'"{json.dumps(tuple(map(hash, block.lines)))}"' if \
                 issubclass(block.__class__, blocks.BaseGeneralBlock) else 'NULL'
 
             layer_up_additional_block_hash = hash(block.layer_up_additional_block) if \
